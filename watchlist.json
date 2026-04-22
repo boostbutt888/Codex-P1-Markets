@@ -1,0 +1,24 @@
+{
+  "symbols": [
+    {
+      "symbol": "AAPL",
+      "label": "AAPL"
+    },
+    {
+      "symbol": "TSLA",
+      "label": "TSLA"
+    },
+    {
+      "symbol": "AMZN",
+      "label": "AMZN"
+    },
+    {
+      "symbol": "AMD",
+      "label": "AMD"
+    },
+    {
+      "symbol": "GOOG",
+      "label": "GOOG"
+    }
+  ]
+}
