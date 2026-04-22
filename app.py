@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import os
+import socket
 import subprocess
 from datetime import datetime, timedelta
 from errno import EADDRINUSE
@@ -19,7 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
 WATCHLIST_FILE = ROOT / "watchlist.json"
-HOST = "127.0.0.1"
+HOST = os.environ.get("STOCK_DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STOCK_DASHBOARD_PORT", "8000"))
 
 
@@ -270,6 +271,27 @@ def fetch_chart(symbol: str, range_value: str = "3mo") -> dict:
     raise ConnectionError("; ".join(failures))
 
 
+def reachable_urls(host: str, port: int) -> list[str]:
+    if host not in {"0.0.0.0", "::"}:
+        return [f"http://{host}:{port}"]
+
+    urls = [f"http://127.0.0.1:{port}"]
+    try:
+        host_name = socket.gethostname()
+        ip_addresses = {
+            info[4][0]
+            for info in socket.getaddrinfo(host_name, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+        }
+    except socket.gaierror:
+        ip_addresses = set()
+
+    for ip_address in sorted(ip_addresses):
+        if ip_address.startswith("127."):
+            continue
+        urls.append(f"http://{ip_address}:{port}")
+    return urls
+
+
 class StockDashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
@@ -360,20 +382,22 @@ class StockDashboardHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    selected_host = HOST
     selected_port = PORT
     try:
-        server = ThreadingHTTPServer((HOST, selected_port), StockDashboardHandler)
+        server = ThreadingHTTPServer((selected_host, selected_port), StockDashboardHandler)
     except OSError as exc:
         if exc.errno != EADDRINUSE:
             raise
-        server = ThreadingHTTPServer((HOST, 0), StockDashboardHandler)
+        server = ThreadingHTTPServer((selected_host, 0), StockDashboardHandler)
         selected_port = int(server.server_address[1])
-        print(
-            f"Port {PORT} was busy, so the dashboard moved to http://{HOST}:{selected_port}",
-            flush=True,
-        )
-    else:
-        print(f"Stock dashboard running at http://{HOST}:{selected_port}", flush=True)
+
+    if selected_port != PORT:
+        print(f"Port {PORT} was busy, so the dashboard moved to port {selected_port}.", flush=True)
+
+    print("Stock dashboard running at:", flush=True)
+    for url in reachable_urls(selected_host, selected_port):
+        print(f"  {url}", flush=True)
 
     try:
         server.serve_forever()

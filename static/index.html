@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Stock Dashboard</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260416b" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260422d" />
   </head>
   <body>
     <div class="page-shell">
@@ -19,6 +19,14 @@
         </div>
         <div class="hero-actions">
           <button id="refresh-button" class="button button-primary">Refresh</button>
+          <label class="range-picker">
+            Theme
+            <select id="theme-select">
+              <option value="auto" selected>Auto</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
           <label class="range-picker">
             Currency
             <select id="currency-select">
@@ -122,6 +130,6 @@
       </article>
     </template>
 
-    <script src="/static/app.js?v=20260416b" defer></script>
+    <script src="/static/app.js?v=20260422d" defer></script>
   </body>
 </html>

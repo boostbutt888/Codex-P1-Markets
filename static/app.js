@@ -2,6 +2,7 @@ const cardsRoot = document.querySelector("#cards");
 const statusMessage = document.querySelector("#status-message");
 const watchlistForm = document.querySelector("#watchlist-form");
 const refreshButton = document.querySelector("#refresh-button");
+const themeSelect = document.querySelector("#theme-select");
 const currencySelect = document.querySelector("#currency-select");
 const changeModeSelect = document.querySelector("#change-mode-select");
 const rangeSelect = document.querySelector("#range-select");
@@ -29,6 +30,25 @@ const RANGE_LABELS = {
   "5y": "5 years",
   max: "max history",
 };
+const THEME_STORAGE_KEY = "stock-dashboard-theme";
+
+function resolveAutoTheme() {
+  const currentHour = new Date().getHours();
+  return currentHour >= 19 || currentHour < 7 ? "dark" : "light";
+}
+
+function applyTheme(themeMode) {
+  const resolvedTheme = themeMode === "auto" ? resolveAutoTheme() : themeMode;
+  document.body.dataset.theme = resolvedTheme;
+}
+
+function initializeTheme() {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || "auto";
+  if (themeSelect) {
+    themeSelect.value = savedTheme;
+  }
+  applyTheme(savedTheme);
+}
 
 function activeBenchmarks() {
   return BENCHMARKS.filter((benchmark) => benchmark.enabled);
@@ -549,6 +569,11 @@ watchlistForm.addEventListener("submit", async (event) => {
 });
 
 refreshButton.addEventListener("click", () => loadCharts().catch(handleError));
+themeSelect.addEventListener("change", () => {
+  const selectedTheme = themeSelect.value;
+  localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
+  applyTheme(selectedTheme);
+});
 currencySelect.addEventListener("change", () => loadCharts().catch(handleError));
 changeModeSelect.addEventListener("change", () => loadCharts().catch(handleError));
 rangeSelect.addEventListener("change", () => loadCharts().catch(handleError));
@@ -560,6 +585,7 @@ function handleError(error) {
 
 async function init() {
   try {
+    initializeTheme();
     renderBenchmarkControls();
     try {
       const response = await fetch("https://api.frankfurter.dev/v1/latest?base=USD&symbols=SGD");

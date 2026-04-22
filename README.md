@@ -25,6 +25,8 @@ You can also use the helper scripts:
 
 - Mac/Linux: `./run.sh`
 - Windows: `run.bat`
+- Mac/Linux LAN mode: `./run-lan.sh`
+- Windows LAN mode: `run-lan.bat`
 
 On Mac, make the script executable once if needed:
 
@@ -57,6 +59,28 @@ Typical workflow:
 5. Run `git add .`
 6. Run `git commit -m "Your message"`
 7. Run `git push`
+
+## Dedicated Network Machine
+
+If you later want one computer to run this for all your devices on the same
+network, use LAN mode instead of localhost-only mode.
+
+Run on the dedicated machine:
+
+- Mac/Linux: `./run-lan.sh`
+- Windows: `run-lan.bat`
+
+This binds the app to `0.0.0.0` so other devices on your network can reach it.
+When the app starts, it prints all reachable local URLs in the terminal.
+
+Example:
+
+```text
+http://192.168.1.25:8000
+```
+
+Then open that URL from your phone, tablet, or another computer on the same
+network.
 
 On a new machine, clone it first:
 
@@ -102,6 +126,13 @@ git config --global user.email "you@example.com"
 
 If port `8000` is already in use, the app will automatically fall back to another
 available localhost port and print the new URL in the terminal.
+
+You can also set these manually if needed:
+
+```bash
+STOCK_DASHBOARD_HOST=0.0.0.0
+STOCK_DASHBOARD_PORT=9000
+```
 
 ## Customize it
 
