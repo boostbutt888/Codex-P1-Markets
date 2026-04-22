@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Stock Dashboard</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260422d" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260422q" />
   </head>
   <body>
     <div class="page-shell">
       <header class="hero">
-        <div>
+        <div class="hero-primary">
           <p class="eyebrow">Local-only watchlist</p>
           <h1>Daily stock charts for the companies you care about.</h1>
           <p class="hero-copy">
@@ -17,84 +17,160 @@
             pulls fresh daily market data only when you ask for it.
           </p>
         </div>
-        <div class="hero-actions">
-          <button id="refresh-button" class="button button-primary">Refresh</button>
-          <label class="range-picker">
-            Theme
-            <select id="theme-select">
-              <option value="auto" selected>Auto</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </label>
-          <label class="range-picker">
-            Currency
-            <select id="currency-select">
-              <option value="USD" selected>USD</option>
-              <option value="SGD">SGD</option>
-            </select>
-          </label>
-          <label class="range-picker">
-            Change
-            <select id="change-mode-select">
-              <option value="percent" selected>%</option>
-              <option value="value">Value</option>
-            </select>
-          </label>
-          <label class="range-picker">
-            Range
-            <select id="range-select">
-              <option value="1mo">1M</option>
-              <option value="3mo" selected>3M</option>
-              <option value="6mo">6M</option>
-              <option value="1y">1Y</option>
-              <option value="5y">5Y</option>
-              <option value="max">Max</option>
-            </select>
-          </label>
-        </div>
       </header>
 
-      <section class="watchlist-panel">
-        <form id="watchlist-form">
-          <div class="field-group">
-            <label for="symbol-input">Ticker</label>
-            <input id="symbol-input" name="symbol" placeholder="AAPL" maxlength="10" required />
+      <section class="controls-panel collapsible-panel" data-collapsible="controls">
+        <button class="panel-toggle" type="button" aria-expanded="true">
+          <div class="panel-toggle-copy">
+            <p class="overview-kicker">Controls</p>
+            <h2>Refresh and display settings</h2>
+            <p class="overview-note">Manage manual or automatic refresh, theme, currency, change mode, and range.</p>
           </div>
-          <div class="field-group">
-            <label for="label-input">Label</label>
-            <input id="label-input" name="label" placeholder="Apple" maxlength="40" />
+          <span class="panel-toggle-icon" aria-hidden="true"></span>
+        </button>
+        <div class="panel-body">
+          <div class="controls-grid">
+            <div class="refresh-controls">
+              <button id="refresh-button" class="button button-primary">Refresh</button>
+              <label class="range-picker">
+                Refresh mode
+                <select id="refresh-mode-select">
+                  <option value="manual" selected>Manual</option>
+                  <option value="auto">Auto refresh</option>
+                </select>
+              </label>
+              <label id="refresh-interval-group" class="range-picker refresh-interval-group" hidden>
+                Auto refresh every
+                <div class="refresh-interval-input">
+                  <input id="refresh-interval-input" type="number" min="1" step="1" value="5" />
+                  <span class="refresh-interval-suffix">min</span>
+                </div>
+              </label>
+            </div>
+            <label class="range-picker">
+              Theme
+              <select id="theme-select">
+                <option value="auto" selected>Auto</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <label class="range-picker">
+              Currency
+              <select id="currency-select">
+                <option value="USD" selected>USD</option>
+                <option value="SGD">SGD</option>
+              </select>
+            </label>
+            <label class="range-picker">
+              Change
+              <select id="change-mode-select">
+                <option value="percent" selected>%</option>
+                <option value="value">Value</option>
+              </select>
+            </label>
+            <label class="range-picker">
+              Range
+              <select id="range-select">
+                <option value="1mo">1M</option>
+                <option value="3mo" selected>3M</option>
+                <option value="6mo">6M</option>
+                <option value="1y">1Y</option>
+                <option value="5y">5Y</option>
+                <option value="max">Max</option>
+              </select>
+            </label>
           </div>
-          <button class="button" type="submit">Add to watchlist</button>
-        </form>
-        <p id="status-message" class="status-message">Loading watchlist…</p>
+        </div>
       </section>
 
       <main>
-        <section class="overview-panel">
-          <div class="overview-header">
-            <div class="overview-copy">
+        <section class="stocks-panel collapsible-panel" data-collapsible="tickers">
+          <button class="panel-toggle" type="button" aria-expanded="true">
+            <div class="panel-toggle-copy">
+              <p class="overview-kicker">Tickers</p>
+              <h2>Your watchlist stocks</h2>
+              <p class="overview-note">All current watchlist cards, prices, positions, and individual charts.</p>
+            </div>
+            <span class="panel-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <div class="panel-body">
+            <section class="watchlist-panel">
+              <form id="watchlist-form">
+                <div class="field-group">
+                  <label for="symbol-input">Ticker</label>
+                  <input id="symbol-input" name="symbol" placeholder="AAPL" maxlength="10" required />
+                </div>
+                <div class="field-group">
+                  <label for="label-input">Label</label>
+                  <input id="label-input" name="label" placeholder="Apple" maxlength="40" />
+                </div>
+                <button class="button" type="submit">Add to watchlist</button>
+              </form>
+              <p id="status-message" class="status-message">Loading watchlist…</p>
+            </section>
+            <section id="cards" class="card-grid" aria-live="polite"></section>
+          </div>
+        </section>
+
+        <section class="overview-panel collapsible-panel" data-collapsible="benchmark">
+          <button class="panel-toggle" type="button" aria-expanded="true">
+            <div class="panel-toggle-copy">
               <p class="overview-kicker">Benchmark view</p>
               <h2>Watchlist average vs market benchmarks</h2>
               <p class="overview-note">All benchmark lines are normalized to the same starting point.</p>
             </div>
-            <div class="overview-metrics">
-              <p id="overview-total-value" class="overview-total-value">Total watchlist value: --</p>
-              <p id="overview-summary" class="overview-summary">Waiting for live data…</p>
+            <span class="panel-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <div class="panel-body">
+            <div class="overview-header">
+              <div class="overview-metrics">
+                <p id="overview-total-value" class="overview-total-value">Total watchlist value: --</p>
+                <p id="overview-summary" class="overview-summary">Waiting for live data…</p>
+              </div>
             </div>
+            <div id="benchmark-controls" class="benchmark-controls"></div>
+            <svg
+              id="overview-chart"
+              class="overview-chart"
+              viewBox="0 0 960 320"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Watchlist average versus market benchmarks chart"
+            ></svg>
+            <div id="overview-legend" class="overview-legend"></div>
           </div>
-          <div id="benchmark-controls" class="benchmark-controls"></div>
-          <svg
-            id="overview-chart"
-            class="overview-chart"
-            viewBox="0 0 960 320"
-            preserveAspectRatio="none"
-            role="img"
-            aria-label="Watchlist average versus market benchmarks chart"
-          ></svg>
-          <div id="overview-legend" class="overview-legend"></div>
         </section>
-        <section id="cards" class="card-grid" aria-live="polite"></section>
+
+        <section class="news-panel collapsible-panel" data-collapsible="news">
+          <button class="panel-toggle" type="button" aria-expanded="true">
+            <div class="panel-toggle-copy">
+              <p class="overview-kicker">Watchlist News</p>
+              <h2>Top headlines from the last 3 days</h2>
+              <p class="overview-note">Grouped by ticker so you can scan what is moving each name on your list.</p>
+            </div>
+            <span class="panel-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <div class="panel-body">
+            <div id="news-groups" class="news-groups" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="market-panel collapsible-panel" data-collapsible="market">
+          <button class="panel-toggle" type="button" aria-expanded="true">
+            <div class="panel-toggle-copy">
+              <p class="overview-kicker">Market View</p>
+              <h2>Market heatmap by segment</h2>
+              <p class="overview-note">A Finviz-style snapshot using major index and sector ETFs to show green and red across the market.</p>
+            </div>
+            <span class="panel-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <div class="panel-body">
+            <div id="market-summary" class="market-summary">Loading market overview…</div>
+            <div id="market-groups" class="market-groups" aria-live="polite"></div>
+            <div id="sector-detail" class="sector-detail" hidden></div>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -130,6 +206,6 @@
       </article>
     </template>
 
-    <script src="/static/app.js?v=20260422d" defer></script>
+    <script src="/static/app.js?v=20260422q" defer></script>
   </body>
 </html>

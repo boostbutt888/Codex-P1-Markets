@@ -7,11 +7,14 @@ import json
 import os
 import socket
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from errno import EADDRINUSE
+from html import unescape
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,6 +25,135 @@ STATIC_DIR = ROOT / "static"
 WATCHLIST_FILE = ROOT / "watchlist.json"
 HOST = os.environ.get("STOCK_DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STOCK_DASHBOARD_PORT", "8000"))
+MARKET_SEGMENTS = [
+    {"symbol": "SPY", "label": "S&P 500", "group": "Broad Market"},
+    {"symbol": "QQQ", "label": "Nasdaq 100", "group": "Broad Market"},
+    {"symbol": "DIA", "label": "Dow", "group": "Broad Market"},
+    {"symbol": "IWM", "label": "Russell 2000", "group": "Broad Market"},
+    {"symbol": "XLK", "label": "Technology", "group": "Sectors"},
+    {"symbol": "XLF", "label": "Financials", "group": "Sectors"},
+    {"symbol": "XLV", "label": "Health Care", "group": "Sectors"},
+    {"symbol": "XLY", "label": "Consumer Discretionary", "group": "Sectors"},
+    {"symbol": "XLP", "label": "Consumer Staples", "group": "Sectors"},
+    {"symbol": "XLI", "label": "Industrials", "group": "Sectors"},
+    {"symbol": "XLE", "label": "Energy", "group": "Sectors"},
+    {"symbol": "XLB", "label": "Materials", "group": "Sectors"},
+    {"symbol": "XLU", "label": "Utilities", "group": "Sectors"},
+    {"symbol": "XLRE", "label": "Real Estate", "group": "Sectors"},
+    {"symbol": "XLC", "label": "Communication Services", "group": "Sectors"},
+]
+MARKET_SECTOR_STOCKS = {
+    "XLK": [
+        {"symbol": "MSFT", "label": "Microsoft"},
+        {"symbol": "AAPL", "label": "Apple"},
+        {"symbol": "NVDA", "label": "NVIDIA"},
+        {"symbol": "AVGO", "label": "Broadcom"},
+        {"symbol": "ORCL", "label": "Oracle"},
+        {"symbol": "ADBE", "label": "Adobe"},
+        {"symbol": "CRM", "label": "Salesforce"},
+        {"symbol": "AMD", "label": "AMD"},
+    ],
+    "XLF": [
+        {"symbol": "BRK-B", "label": "Berkshire Hathaway"},
+        {"symbol": "JPM", "label": "JPMorgan"},
+        {"symbol": "V", "label": "Visa"},
+        {"symbol": "MA", "label": "Mastercard"},
+        {"symbol": "BAC", "label": "Bank of America"},
+        {"symbol": "WFC", "label": "Wells Fargo"},
+        {"symbol": "GS", "label": "Goldman Sachs"},
+        {"symbol": "MS", "label": "Morgan Stanley"},
+    ],
+    "XLV": [
+        {"symbol": "LLY", "label": "Eli Lilly"},
+        {"symbol": "JNJ", "label": "Johnson & Johnson"},
+        {"symbol": "UNH", "label": "UnitedHealth"},
+        {"symbol": "MRK", "label": "Merck"},
+        {"symbol": "ABBV", "label": "AbbVie"},
+        {"symbol": "TMO", "label": "Thermo Fisher"},
+        {"symbol": "PFE", "label": "Pfizer"},
+        {"symbol": "ABT", "label": "Abbott"},
+    ],
+    "XLY": [
+        {"symbol": "AMZN", "label": "Amazon"},
+        {"symbol": "TSLA", "label": "Tesla"},
+        {"symbol": "HD", "label": "Home Depot"},
+        {"symbol": "MCD", "label": "McDonald's"},
+        {"symbol": "NKE", "label": "Nike"},
+        {"symbol": "SBUX", "label": "Starbucks"},
+        {"symbol": "LOW", "label": "Lowe's"},
+        {"symbol": "BKNG", "label": "Booking"},
+    ],
+    "XLP": [
+        {"symbol": "PG", "label": "Procter & Gamble"},
+        {"symbol": "COST", "label": "Costco"},
+        {"symbol": "KO", "label": "Coca-Cola"},
+        {"symbol": "PEP", "label": "PepsiCo"},
+        {"symbol": "WMT", "label": "Walmart"},
+        {"symbol": "PM", "label": "Philip Morris"},
+        {"symbol": "MDLZ", "label": "Mondelez"},
+        {"symbol": "CL", "label": "Colgate"},
+    ],
+    "XLI": [
+        {"symbol": "GE", "label": "GE Aerospace"},
+        {"symbol": "RTX", "label": "RTX"},
+        {"symbol": "CAT", "label": "Caterpillar"},
+        {"symbol": "UBER", "label": "Uber"},
+        {"symbol": "HON", "label": "Honeywell"},
+        {"symbol": "ETN", "label": "Eaton"},
+        {"symbol": "LMT", "label": "Lockheed Martin"},
+        {"symbol": "DE", "label": "Deere"},
+    ],
+    "XLE": [
+        {"symbol": "XOM", "label": "Exxon Mobil"},
+        {"symbol": "CVX", "label": "Chevron"},
+        {"symbol": "COP", "label": "ConocoPhillips"},
+        {"symbol": "SLB", "label": "Schlumberger"},
+        {"symbol": "EOG", "label": "EOG Resources"},
+        {"symbol": "MPC", "label": "Marathon Petroleum"},
+        {"symbol": "PSX", "label": "Phillips 66"},
+        {"symbol": "OXY", "label": "Occidental"},
+    ],
+    "XLB": [
+        {"symbol": "LIN", "label": "Linde"},
+        {"symbol": "APD", "label": "Air Products"},
+        {"symbol": "SHW", "label": "Sherwin-Williams"},
+        {"symbol": "FCX", "label": "Freeport-McMoRan"},
+        {"symbol": "ECL", "label": "Ecolab"},
+        {"symbol": "NUE", "label": "Nucor"},
+        {"symbol": "DD", "label": "DuPont"},
+        {"symbol": "CTVA", "label": "Corteva"},
+    ],
+    "XLU": [
+        {"symbol": "NEE", "label": "NextEra Energy"},
+        {"symbol": "SO", "label": "Southern"},
+        {"symbol": "DUK", "label": "Duke Energy"},
+        {"symbol": "AEP", "label": "American Electric Power"},
+        {"symbol": "SRE", "label": "Sempra"},
+        {"symbol": "D", "label": "Dominion"},
+        {"symbol": "XEL", "label": "Xcel Energy"},
+        {"symbol": "PEG", "label": "Public Service Enterprise"},
+    ],
+    "XLRE": [
+        {"symbol": "AMT", "label": "American Tower"},
+        {"symbol": "PLD", "label": "Prologis"},
+        {"symbol": "EQIX", "label": "Equinix"},
+        {"symbol": "WELL", "label": "Welltower"},
+        {"symbol": "SPG", "label": "Simon Property"},
+        {"symbol": "O", "label": "Realty Income"},
+        {"symbol": "PSA", "label": "Public Storage"},
+        {"symbol": "DLR", "label": "Digital Realty"},
+    ],
+    "XLC": [
+        {"symbol": "GOOGL", "label": "Alphabet"},
+        {"symbol": "META", "label": "Meta"},
+        {"symbol": "NFLX", "label": "Netflix"},
+        {"symbol": "DIS", "label": "Disney"},
+        {"symbol": "TMUS", "label": "T-Mobile"},
+        {"symbol": "VZ", "label": "Verizon"},
+        {"symbol": "CMCSA", "label": "Comcast"},
+        {"symbol": "T", "label": "AT&T"},
+    ],
+}
 
 
 def load_watchlist() -> dict:
@@ -97,6 +229,12 @@ def yahoo_chart_url(symbol: str, range_value: str = "3mo") -> str:
 def yahoo_quote_url(symbol: str) -> str:
     query = urllib.parse.urlencode({"symbols": symbol})
     return f"https://query1.finance.yahoo.com/v7/finance/quote?{query}"
+
+
+def google_news_rss_url(symbol: str, label: str) -> str:
+    query = f'"{symbol}" stock OR "{label}" stock when:3d'
+    encoded_query = urllib.parse.quote(query)
+    return f"https://news.google.com/rss/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
 
 
 def fetch_text(url: str, accept: str) -> str:
@@ -271,6 +409,194 @@ def fetch_chart(symbol: str, range_value: str = "3mo") -> dict:
     raise ConnectionError("; ".join(failures))
 
 
+def build_quote_snapshot(quote_result: dict, segment: dict) -> dict:
+    previous_close = quote_result.get("regularMarketPreviousClose")
+    current_price = quote_result.get("regularMarketPrice")
+    day_change = quote_result.get("regularMarketChange")
+    day_change_pct = quote_result.get("regularMarketChangePercent")
+
+    if current_price is None and previous_close is None:
+        raise ValueError(f"No live quote available for {segment['symbol']}")
+
+    if day_change is None and current_price is not None and previous_close not in (None, 0):
+        day_change = float(current_price) - float(previous_close)
+    if day_change_pct is None and day_change is not None and previous_close not in (None, 0):
+        day_change_pct = (float(day_change) / float(previous_close)) * 100
+
+    return {
+        "symbol": segment["symbol"],
+        "label": segment["label"],
+        "group": segment["group"],
+        "price": round(float(current_price), 2) if current_price is not None else None,
+        "dayChange": round(float(day_change), 2) if day_change is not None else None,
+        "dayChangePct": round(float(day_change_pct), 2) if day_change_pct is not None else None,
+        "isLive": True,
+        "dataSource": "Yahoo Finance",
+    }
+
+
+def fetch_market_snapshots(segments: list[dict]) -> tuple[list[dict], list[str]]:
+    symbols = ",".join(segment["symbol"] for segment in segments)
+    snapshots = []
+    failures = []
+
+    try:
+        payload = json.loads(fetch_text(yahoo_quote_url(symbols), "application/json"))
+        results = ((payload.get("quoteResponse") or {}).get("result") or [])
+        by_symbol = {
+            str(item.get("symbol", "")).upper(): item
+            for item in results
+            if item.get("symbol")
+        }
+        for segment in MARKET_SEGMENTS:
+            quote_result = by_symbol.get(segment["symbol"])
+            if not quote_result:
+                raise ValueError(f"Missing quote for {segment['symbol']}")
+            snapshots.append(build_quote_snapshot(quote_result, segment))
+    except (ConnectionError, ValueError, json.JSONDecodeError) as exc:
+        failures.append(str(exc))
+        snapshots = []
+        for segment in segments:
+            try:
+                fallback = fetch_chart(segment["symbol"], range_value="1mo")
+                snapshots.append(
+                    {
+                        "symbol": segment["symbol"],
+                        "label": segment["label"],
+                        "group": segment["group"],
+                        "price": fallback.get("price"),
+                        "dayChange": fallback.get("dayChange"),
+                        "dayChangePct": fallback.get("dayChangePct"),
+                        "isLive": fallback.get("isLive", False),
+                        "dataSource": fallback.get("dataSource") or "Fallback",
+                    }
+                )
+            except (ConnectionError, ValueError) as fallback_exc:
+                snapshots.append(
+                    {
+                        "symbol": segment["symbol"],
+                        "label": segment["label"],
+                        "group": segment["group"],
+                        "error": str(fallback_exc),
+                    }
+                )
+
+    return snapshots, failures
+
+
+def fetch_market_overview() -> dict:
+    snapshots, failures = fetch_market_snapshots(MARKET_SEGMENTS)
+    return {"segments": snapshots, "errors": failures}
+
+
+def fetch_market_sector(symbol: str) -> dict:
+    sector_symbol = symbol.strip().upper()
+    entries = MARKET_SECTOR_STOCKS.get(sector_symbol)
+    if not entries:
+        raise ValueError(f"Unsupported market sector: {sector_symbol}")
+
+    sector_label = next((segment["label"] for segment in MARKET_SEGMENTS if segment["symbol"] == sector_symbol), sector_symbol)
+    stock_segments = [
+        {"symbol": entry["symbol"], "label": entry["label"], "group": sector_label}
+        for entry in entries
+    ]
+    snapshots, failures = fetch_market_snapshots(stock_segments)
+    return {
+        "sectorSymbol": sector_symbol,
+        "sectorLabel": sector_label,
+        "stocks": snapshots,
+        "errors": failures,
+    }
+
+
+def parse_news_pub_date(raw_value: str) -> datetime | None:
+    if not raw_value:
+        return None
+    try:
+        return parsedate_to_datetime(raw_value)
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def extract_source_name(item: ET.Element) -> str | None:
+    source_node = item.find("source")
+    if source_node is not None and source_node.text:
+        return source_node.text.strip()
+    return None
+
+
+def clean_news_title(raw_title: str) -> str:
+    title = unescape(raw_title or "").strip()
+    if " - " in title:
+        title = title.rsplit(" - ", 1)[0].strip()
+    return title
+
+
+def fetch_news_for_entry(entry: dict) -> dict:
+    symbol = str(entry.get("symbol", "")).strip().upper()
+    label = str(entry.get("label", symbol)).strip() or symbol
+    url = google_news_rss_url(symbol, label)
+    try:
+        payload = fetch_text(url, "application/rss+xml, application/xml;q=0.9, text/xml;q=0.8")
+    except ConnectionError as exc:
+        raise ConnectionError(f"Unable to reach Google News for {symbol}") from exc
+
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError as exc:
+        raise ValueError(f"Unable to parse news feed for {symbol}") from exc
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=3)
+    items = []
+    for item in root.findall("./channel/item"):
+        title = clean_news_title(item.findtext("title", default=""))
+        link = item.findtext("link", default="").strip()
+        published_at = parse_news_pub_date(item.findtext("pubDate", default=""))
+        if not title or not link or published_at is None:
+            continue
+
+        published_utc = published_at.astimezone(timezone.utc)
+        if published_utc < cutoff:
+            continue
+
+        items.append(
+            {
+                "title": title,
+                "link": link,
+                "source": extract_source_name(item),
+                "publishedAt": published_utc.isoformat(),
+            }
+        )
+
+    return {
+        "symbol": symbol,
+        "label": label,
+        "items": items[:5],
+    }
+
+
+def fetch_watchlist_news() -> dict:
+    watchlist = load_watchlist().get("symbols", [])
+    groups = []
+    for entry in watchlist:
+        symbol = str(entry.get("symbol", "")).strip().upper()
+        if not symbol:
+            continue
+        try:
+            groups.append(fetch_news_for_entry(entry))
+        except (ConnectionError, ValueError) as exc:
+            groups.append(
+                {
+                    "symbol": symbol,
+                    "label": str(entry.get("label", symbol)).strip() or symbol,
+                    "items": [],
+                    "error": str(exc),
+                }
+            )
+
+    return {"groups": groups}
+
+
 def reachable_urls(host: str, port: int) -> list[str]:
     if host not in {"0.0.0.0", "::"}:
         return [f"http://{host}:{port}"]
@@ -302,6 +628,26 @@ class StockDashboardHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/watchlist":
             self.respond_json(load_watchlist())
+            return
+
+        if parsed.path == "/api/news":
+            self.respond_json(fetch_watchlist_news())
+            return
+
+        if parsed.path == "/api/market-overview":
+            self.respond_json(fetch_market_overview())
+            return
+
+        if parsed.path == "/api/market-sector":
+            params = urllib.parse.parse_qs(parsed.query)
+            symbol = (params.get("symbol") or [""])[0].strip().upper()
+            if not symbol:
+                self.respond_json({"error": "symbol is required"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                self.respond_json(fetch_market_sector(symbol))
+            except ValueError as exc:
+                self.respond_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return
 
         if parsed.path == "/api/chart":

@@ -2,6 +2,9 @@ const cardsRoot = document.querySelector("#cards");
 const statusMessage = document.querySelector("#status-message");
 const watchlistForm = document.querySelector("#watchlist-form");
 const refreshButton = document.querySelector("#refresh-button");
+const refreshModeSelect = document.querySelector("#refresh-mode-select");
+const refreshIntervalGroup = document.querySelector("#refresh-interval-group");
+const refreshIntervalInput = document.querySelector("#refresh-interval-input");
 const themeSelect = document.querySelector("#theme-select");
 const currencySelect = document.querySelector("#currency-select");
 const changeModeSelect = document.querySelector("#change-mode-select");
@@ -12,9 +15,16 @@ const overviewLegend = document.querySelector("#overview-legend");
 const overviewSummary = document.querySelector("#overview-summary");
 const overviewTotalValue = document.querySelector("#overview-total-value");
 const benchmarkControls = document.querySelector("#benchmark-controls");
+const newsGroupsRoot = document.querySelector("#news-groups");
+const marketSummary = document.querySelector("#market-summary");
+const marketGroupsRoot = document.querySelector("#market-groups");
+const sectorDetailRoot = document.querySelector("#sector-detail");
+const collapsiblePanels = document.querySelectorAll(".collapsible-panel");
 
 let watchlist = [];
 let usdToSgdRate = 1;
+let autoRefreshTimer = null;
+let selectedMarketSector = null;
 const WATCHLIST_AVERAGE_COLOR = "#1f6f5f";
 const BENCHMARKS = [
   { key: "sp500", symbol: "SPY", label: "S&P 500", shortLabel: "S&P 500 (SPY)", color: "#c4672f", enabled: true },
@@ -31,6 +41,9 @@ const RANGE_LABELS = {
   max: "max history",
 };
 const THEME_STORAGE_KEY = "stock-dashboard-theme";
+const COLLAPSE_STORAGE_PREFIX = "stock-dashboard-collapse-";
+const REFRESH_MODE_STORAGE_KEY = "stock-dashboard-refresh-mode";
+const REFRESH_INTERVAL_STORAGE_KEY = "stock-dashboard-refresh-interval";
 
 function resolveAutoTheme() {
   const currentHour = new Date().getHours();
@@ -48,6 +61,82 @@ function initializeTheme() {
     themeSelect.value = savedTheme;
   }
   applyTheme(savedTheme);
+}
+
+function setRefreshIntervalVisibility() {
+  const isAuto = refreshModeSelect?.value === "auto";
+  if (refreshIntervalGroup) {
+    refreshIntervalGroup.hidden = !isAuto;
+  }
+}
+
+async function refreshDashboard() {
+  await Promise.all([loadCharts(), loadNews(), loadMarketOverview()]);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer !== null) {
+    window.clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  if (!refreshModeSelect || refreshModeSelect.value !== "auto") {
+    return;
+  }
+
+  const minutes = Number(refreshIntervalInput?.value || 5);
+  const intervalMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 5;
+  if (refreshIntervalInput) {
+    refreshIntervalInput.value = String(intervalMinutes);
+  }
+
+  autoRefreshTimer = window.setInterval(() => {
+    refreshDashboard().catch(handleError);
+  }, intervalMinutes * 60 * 1000);
+}
+
+function initializeRefreshControls() {
+  const savedMode = localStorage.getItem(REFRESH_MODE_STORAGE_KEY) || "manual";
+  const savedInterval = localStorage.getItem(REFRESH_INTERVAL_STORAGE_KEY) || "5";
+
+  if (refreshModeSelect) {
+    refreshModeSelect.value = savedMode;
+  }
+
+  if (refreshIntervalInput) {
+    refreshIntervalInput.value = savedInterval;
+  }
+
+  setRefreshIntervalVisibility();
+  startAutoRefresh();
+}
+
+function initializeCollapsibles() {
+  collapsiblePanels.forEach((panel) => {
+    const key = panel.dataset.collapsible;
+    const toggle = panel.querySelector(".panel-toggle");
+    const body = panel.querySelector(".panel-body");
+    if (!key || !toggle || !body) {
+      return;
+    }
+
+    const storageKey = `${COLLAPSE_STORAGE_PREFIX}${key}`;
+    const savedState = localStorage.getItem(storageKey);
+    const isCollapsed = savedState === "collapsed";
+
+    panel.classList.toggle("is-collapsed", isCollapsed);
+    toggle.setAttribute("aria-expanded", String(!isCollapsed));
+
+    toggle.addEventListener("click", () => {
+      const nextCollapsed = !panel.classList.contains("is-collapsed");
+      panel.classList.toggle("is-collapsed", nextCollapsed);
+      toggle.setAttribute("aria-expanded", String(!nextCollapsed));
+      localStorage.setItem(storageKey, nextCollapsed ? "collapsed" : "expanded");
+    });
+  });
 }
 
 function activeBenchmarks() {
@@ -206,6 +295,367 @@ function liveBadgeLabel(stock) {
   return stock.isLive ? "LIVE" : "EOD";
 }
 
+function formatNewsTimestamp(value) {
+  if (!value) {
+    return "";
+  }
+
+  const publishedAt = new Date(value);
+  if (Number.isNaN(publishedAt.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(publishedAt);
+}
+
+function formatSignedPercent(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "--";
+  }
+  const numericValue = Number(value);
+  const sign = numericValue > 0 ? "+" : "";
+  return `${sign}${numericValue.toFixed(2)}%`;
+}
+
+function heatTileStyle(dayChangePct) {
+  const numericValue = Number(dayChangePct);
+  if (!Number.isFinite(numericValue)) {
+    return "";
+  }
+
+  const intensity = Math.min(Math.abs(numericValue) / 3, 1);
+  if (numericValue > 0) {
+    return `background: linear-gradient(160deg, rgba(22, 138, 92, ${0.72 + intensity * 0.2}), rgba(12, 84, 57, ${0.84 + intensity * 0.14})); border-color: rgba(62, 214, 149, ${0.42 + intensity * 0.28}); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);`;
+  }
+  if (numericValue < 0) {
+    return `background: linear-gradient(160deg, rgba(198, 63, 50, ${0.72 + intensity * 0.2}), rgba(122, 28, 28, ${0.84 + intensity * 0.14})); border-color: rgba(255, 120, 103, ${0.42 + intensity * 0.28}); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);`;
+  }
+  return "background: linear-gradient(160deg, rgba(84, 92, 101, 0.62), rgba(54, 60, 66, 0.82)); border-color: rgba(122, 132, 142, 0.36);";
+}
+
+function renderNews(groups) {
+  if (!newsGroupsRoot) {
+    return;
+  }
+
+  newsGroupsRoot.replaceChildren();
+
+  if (!watchlist.length) {
+    const emptyState = document.createElement("p");
+    emptyState.className = "news-empty";
+    emptyState.textContent = "Add a ticker to start seeing recent watchlist headlines.";
+    newsGroupsRoot.appendChild(emptyState);
+    return;
+  }
+
+  groups.forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "news-group";
+
+    const toggle = document.createElement("button");
+    toggle.className = "news-group-toggle";
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "false");
+
+    const header = document.createElement("div");
+    header.className = "news-group-header";
+
+    const title = document.createElement("h3");
+    title.className = "news-group-title";
+    title.textContent = group.symbol;
+
+    const subtitle = document.createElement("p");
+    subtitle.className = "news-group-subtitle";
+    subtitle.textContent = group.label || group.symbol;
+
+    header.append(title, subtitle);
+
+    const icon = document.createElement("span");
+    icon.className = "news-group-icon";
+    icon.setAttribute("aria-hidden", "true");
+
+    toggle.append(header, icon);
+    section.appendChild(toggle);
+
+    if (group.error) {
+      const error = document.createElement("p");
+      error.className = "news-empty";
+      error.textContent = group.error;
+      error.hidden = true;
+      section.appendChild(error);
+      toggle.addEventListener("click", () => {
+        const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+        toggle.setAttribute("aria-expanded", String(!isExpanded));
+        section.classList.toggle("is-expanded", !isExpanded);
+        error.hidden = isExpanded;
+      });
+      newsGroupsRoot.appendChild(section);
+      return;
+    }
+
+    if (!Array.isArray(group.items) || !group.items.length) {
+      const empty = document.createElement("p");
+      empty.className = "news-empty";
+      empty.textContent = `No recent headlines found for ${group.symbol}.`;
+      empty.hidden = true;
+      section.appendChild(empty);
+      toggle.addEventListener("click", () => {
+        const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+        toggle.setAttribute("aria-expanded", String(!isExpanded));
+        section.classList.toggle("is-expanded", !isExpanded);
+        empty.hidden = isExpanded;
+      });
+      newsGroupsRoot.appendChild(section);
+      return;
+    }
+
+    const list = document.createElement("div");
+    list.className = "news-list";
+    list.hidden = true;
+
+    group.items.forEach((item) => {
+      const article = document.createElement("article");
+      article.className = "news-item";
+
+      const link = document.createElement("a");
+      link.className = "news-link";
+      link.href = item.link;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = item.title;
+
+      const meta = document.createElement("p");
+      meta.className = "news-meta";
+      meta.textContent = [item.source, formatNewsTimestamp(item.publishedAt)].filter(Boolean).join(" • ");
+
+      article.append(link, meta);
+      list.appendChild(article);
+    });
+
+    section.appendChild(list);
+    toggle.addEventListener("click", () => {
+      const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!isExpanded));
+      section.classList.toggle("is-expanded", !isExpanded);
+      list.hidden = isExpanded;
+    });
+    newsGroupsRoot.appendChild(section);
+  });
+}
+
+async function loadNews() {
+  if (!newsGroupsRoot) {
+    return;
+  }
+
+  if (!watchlist.length) {
+    renderNews([]);
+    return;
+  }
+
+  const response = await fetch("/api/news");
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to load watchlist news");
+  }
+
+  renderNews(payload.groups || []);
+}
+
+function renderMarketOverview(segments) {
+  if (!marketGroupsRoot || !marketSummary) {
+    return;
+  }
+
+  marketGroupsRoot.replaceChildren();
+
+  const availableSegments = (segments || []).filter(
+    (segment) => segment.dayChangePct !== null && segment.dayChangePct !== undefined
+  );
+  if (!availableSegments.length) {
+    marketSummary.textContent = "Market overview is unavailable right now.";
+    return;
+  }
+
+  const positiveCount = availableSegments.filter((segment) => Number(segment.dayChangePct) > 0).length;
+  const negativeCount = availableSegments.filter((segment) => Number(segment.dayChangePct) < 0).length;
+  const flatCount = availableSegments.length - positiveCount - negativeCount;
+  marketSummary.textContent = `${positiveCount} segments green • ${negativeCount} segments red • ${flatCount} flat`;
+
+  const groupedSegments = new Map();
+  (segments || []).forEach((segment) => {
+    const key = segment.group || "Other";
+    const bucket = groupedSegments.get(key) || [];
+    bucket.push(segment);
+    groupedSegments.set(key, bucket);
+  });
+
+  groupedSegments.forEach((items, groupName) => {
+    const groupSection = document.createElement("section");
+    groupSection.className = "market-group";
+
+    const groupTitle = document.createElement("h3");
+    groupTitle.className = "market-group-title";
+    groupTitle.textContent = groupName;
+    groupSection.appendChild(groupTitle);
+
+    const grid = document.createElement("div");
+    grid.className = "market-grid";
+
+    items.forEach((segment) => {
+      const tile = document.createElement(segment.group === "Sectors" ? "button" : "article");
+      tile.className = "market-tile";
+      if (segment.group === "Sectors") {
+        tile.type = "button";
+        tile.classList.add("market-tile-button");
+        if (selectedMarketSector === segment.symbol) {
+          tile.classList.add("active");
+        }
+        tile.addEventListener("click", () => {
+          const nextSelection = selectedMarketSector === segment.symbol ? null : segment.symbol;
+          selectedMarketSector = nextSelection;
+          renderMarketOverview(segments);
+          loadSectorDetail().catch(handleError);
+        });
+      }
+      if (segment.dayChangePct !== null && segment.dayChangePct !== undefined) {
+        tile.style.cssText = heatTileStyle(segment.dayChangePct);
+      }
+
+      const label = document.createElement("p");
+      label.className = "market-tile-label";
+      label.textContent = segment.label;
+
+      const symbol = document.createElement("p");
+      symbol.className = "market-tile-symbol";
+      symbol.textContent = segment.symbol;
+
+      const change = document.createElement("p");
+      change.className = "market-tile-change";
+      change.textContent = formatSignedPercent(segment.dayChangePct);
+
+      const meta = document.createElement("p");
+      meta.className = "market-tile-meta";
+      meta.textContent = segment.error
+        ? segment.error
+        : [segment.price ? currencyFormatter("USD").format(Number(segment.price)) : null, segment.dataSource]
+            .filter(Boolean)
+            .join(" • ");
+
+      tile.append(label, symbol, change, meta);
+      grid.appendChild(tile);
+    });
+
+    groupSection.appendChild(grid);
+    marketGroupsRoot.appendChild(groupSection);
+  });
+}
+
+async function loadMarketOverview() {
+  if (!marketGroupsRoot || !marketSummary) {
+    return;
+  }
+
+  marketSummary.textContent = "Loading market overview…";
+  const response = await fetch("/api/market-overview");
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to load market overview");
+  }
+
+  renderMarketOverview(payload.segments || []);
+}
+
+function renderSectorDetail(payload) {
+  if (!sectorDetailRoot) {
+    return;
+  }
+
+  if (!payload || !selectedMarketSector) {
+    sectorDetailRoot.hidden = true;
+    sectorDetailRoot.replaceChildren();
+    return;
+  }
+
+  sectorDetailRoot.hidden = false;
+  sectorDetailRoot.replaceChildren();
+
+  const header = document.createElement("div");
+  header.className = "sector-detail-header";
+
+  const title = document.createElement("h3");
+  title.className = "sector-detail-title";
+  title.textContent = `${payload.sectorLabel} stock map`;
+
+  const note = document.createElement("p");
+  note.className = "sector-detail-note";
+  note.textContent = "Representative stocks inside the selected sector.";
+
+  header.append(title, note);
+
+  const grid = document.createElement("div");
+  grid.className = "market-grid sector-stock-grid";
+
+  (payload.stocks || []).forEach((stock) => {
+    const tile = document.createElement("article");
+    tile.className = "market-tile sector-stock-tile";
+    if (stock.dayChangePct !== null && stock.dayChangePct !== undefined) {
+      tile.style.cssText = heatTileStyle(stock.dayChangePct);
+    }
+
+    const label = document.createElement("p");
+    label.className = "market-tile-label";
+    label.textContent = stock.label;
+
+    const symbol = document.createElement("p");
+    symbol.className = "market-tile-symbol";
+    symbol.textContent = stock.symbol;
+
+    const change = document.createElement("p");
+    change.className = "market-tile-change";
+    change.textContent = formatSignedPercent(stock.dayChangePct);
+
+    const meta = document.createElement("p");
+    meta.className = "market-tile-meta";
+    meta.textContent = stock.error
+      ? stock.error
+      : [stock.price ? currencyFormatter("USD").format(Number(stock.price)) : null, stock.dataSource]
+          .filter(Boolean)
+          .join(" • ");
+
+    tile.append(label, symbol, change, meta);
+    grid.appendChild(tile);
+  });
+
+  sectorDetailRoot.append(header, grid);
+}
+
+async function loadSectorDetail() {
+  if (!sectorDetailRoot) {
+    return;
+  }
+
+  if (!selectedMarketSector) {
+    renderSectorDetail(null);
+    return;
+  }
+
+  sectorDetailRoot.hidden = false;
+  sectorDetailRoot.textContent = "Loading sector stock map…";
+  const response = await fetch(`/api/market-sector?symbol=${encodeURIComponent(selectedMarketSector)}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to load sector stock map");
+  }
+
+  renderSectorDetail(payload);
+}
+
 function buildChart(points, positiveTrend) {
   const width = 360;
   const height = 140;
@@ -315,12 +765,12 @@ function renderOverview(stocks, benchmarks) {
     .map((benchmark) => ({ ...benchmark, points: normalizeSeries(benchmark.points) }))
     .filter((benchmark) => benchmark.points.length);
 
-  if (!availableStocks.length || !averageSeries.length || !benchmarkSeries.length) {
+  if (!availableStocks.length || !averageSeries.length) {
     renderLegend([]);
     if (!availableStocks.length) {
       overviewTotalValue.textContent = "Total watchlist value: --";
     }
-    overviewSummary.textContent = "Turn on at least one benchmark with available data to compare your watchlist.";
+    overviewSummary.textContent = "Add stocks with available data to see your watchlist trend.";
     return;
   }
 
@@ -361,6 +811,11 @@ function renderOverview(stocks, benchmarks) {
     { label: "Watchlist average", color: WATCHLIST_AVERAGE_COLOR },
     ...benchmarkSeries.map((series) => ({ label: series.shortLabel, color: series.color })),
   ]);
+
+  if (!benchmarkSeries.length) {
+    overviewSummary.textContent = `Showing your watchlist trend over ${currentRangeLabel()}. Turn on a benchmark to compare it against the market.`;
+    return;
+  }
 
   const watchlistLast = averageSeries.at(-1)?.close ?? 0;
   const comparisons = benchmarkSeries.map((series) => {
@@ -464,6 +919,7 @@ function renderCard(stock) {
   removeButton.addEventListener("click", async () => {
     watchlist = watchlist.filter((entry) => entry.symbol !== stock.symbol);
     await saveWatchlist();
+    await loadNews();
     await loadCharts();
   });
 
@@ -565,10 +1021,23 @@ watchlistForm.addEventListener("submit", async (event) => {
   watchlist = [...watchlist, { symbol, label }];
   await saveWatchlist();
   watchlistForm.reset();
+  await loadNews();
   await loadCharts();
 });
 
-refreshButton.addEventListener("click", () => loadCharts().catch(handleError));
+refreshButton.addEventListener("click", () => refreshDashboard().catch(handleError));
+refreshModeSelect.addEventListener("change", () => {
+  localStorage.setItem(REFRESH_MODE_STORAGE_KEY, refreshModeSelect.value);
+  setRefreshIntervalVisibility();
+  startAutoRefresh();
+});
+refreshIntervalInput.addEventListener("change", () => {
+  const minutes = Number(refreshIntervalInput.value);
+  const nextMinutes = Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : 5;
+  refreshIntervalInput.value = String(nextMinutes);
+  localStorage.setItem(REFRESH_INTERVAL_STORAGE_KEY, String(nextMinutes));
+  startAutoRefresh();
+});
 themeSelect.addEventListener("change", () => {
   const selectedTheme = themeSelect.value;
   localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
@@ -586,6 +1055,8 @@ function handleError(error) {
 async function init() {
   try {
     initializeTheme();
+    initializeRefreshControls();
+    initializeCollapsibles();
     renderBenchmarkControls();
     try {
       const response = await fetch("https://api.frankfurter.dev/v1/latest?base=USD&symbols=SGD");
@@ -597,7 +1068,7 @@ async function init() {
       console.warn("Unable to load USD/SGD rate, falling back to USD display parity.", error);
     }
     await getWatchlist();
-    await loadCharts();
+    await refreshDashboard();
   } catch (error) {
     handleError(error);
   }
