@@ -3,6 +3,9 @@
 A lightweight local-only stock dashboard that runs on your Mac and stores your
 watchlist in a file on disk.
 
+This repository is the shared stock market monitoring app intended to work
+across your computers while still running locally on each machine.
+
 ## What it does
 
 - Serves a dashboard on `http://127.0.0.1:8000`
