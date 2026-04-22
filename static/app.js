@@ -71,7 +71,7 @@ function setRefreshIntervalVisibility() {
 }
 
 async function refreshDashboard() {
-  await Promise.all([loadCharts(), loadNews(), loadMarketOverview()]);
+  await Promise.all([loadCharts(), loadNews(), loadMarketOverview(), loadSectorDetail()]);
 }
 
 function stopAutoRefresh() {
@@ -569,6 +569,34 @@ async function loadMarketOverview() {
   }
 
   renderMarketOverview(payload.segments || []);
+  const sectorSymbols = new Set(
+    (payload.segments || []).filter((segment) => segment.group === "Sectors").map((segment) => segment.symbol)
+  );
+  if (selectedMarketSector && !sectorSymbols.has(selectedMarketSector)) {
+    selectedMarketSector = null;
+  }
+  await loadSectorDetail();
+}
+
+async function loadSectorDetail() {
+  if (!sectorDetailRoot) {
+    return;
+  }
+
+  if (!selectedMarketSector) {
+    renderSectorDetail(null);
+    return;
+  }
+
+  sectorDetailRoot.hidden = false;
+  sectorDetailRoot.textContent = "Loading sector stock map…";
+  const response = await fetch(`/api/market-sector?symbol=${encodeURIComponent(selectedMarketSector)}`);
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to load sector stock map");
+  }
+
+  renderSectorDetail(payload);
 }
 
 function renderSectorDetail(payload) {
@@ -633,27 +661,6 @@ function renderSectorDetail(payload) {
   });
 
   sectorDetailRoot.append(header, grid);
-}
-
-async function loadSectorDetail() {
-  if (!sectorDetailRoot) {
-    return;
-  }
-
-  if (!selectedMarketSector) {
-    renderSectorDetail(null);
-    return;
-  }
-
-  sectorDetailRoot.hidden = false;
-  sectorDetailRoot.textContent = "Loading sector stock map…";
-  const response = await fetch(`/api/market-sector?symbol=${encodeURIComponent(selectedMarketSector)}`);
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || "Unable to load sector stock map");
-  }
-
-  renderSectorDetail(payload);
 }
 
 function buildChart(points, positiveTrend) {

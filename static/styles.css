@@ -555,6 +555,10 @@ input {
   color: var(--muted);
 }
 
+.sector-stock-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
 .overview-header {
   display: flex;
   justify-content: space-between;

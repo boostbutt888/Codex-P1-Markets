@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from errno import EADDRINUSE
 from html import unescape
+from http import cookies
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,6 +26,7 @@ STATIC_DIR = ROOT / "static"
 WATCHLIST_FILE = ROOT / "watchlist.json"
 HOST = os.environ.get("STOCK_DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STOCK_DASHBOARD_PORT", "8000"))
+ACCESS_CODE = "1010"
 MARKET_SEGMENTS = [
     {"symbol": "SPY", "label": "S&P 500", "group": "Broad Market"},
     {"symbol": "QQQ", "label": "Nasdaq 100", "group": "Broad Market"},
@@ -619,8 +621,125 @@ def reachable_urls(host: str, port: int) -> list[str]:
 
 
 class StockDashboardHandler(BaseHTTPRequestHandler):
+    def is_authenticated(self) -> bool:
+        raw_cookie = self.headers.get("Cookie", "")
+        if not raw_cookie:
+            return False
+
+        jar = cookies.SimpleCookie()
+        try:
+            jar.load(raw_cookie)
+        except cookies.CookieError:
+            return False
+
+        token = jar.get("stock_dashboard_auth")
+        return bool(token and token.value == ACCESS_CODE)
+
+    def respond_login_required(self) -> None:
+        if self.path.startswith("/api/"):
+            self.respond_json({"error": "Authentication required"}, status=HTTPStatus.UNAUTHORIZED)
+            return
+        self.serve_login_page()
+
+    def serve_login_page(self, error_message: str | None = None) -> None:
+        error_html = ""
+        if error_message:
+            error_html = f'<p style="margin:0;color:#ee8a74;font:500 15px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;">{error_message}</p>'
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unlock Dashboard</title>
+    <style>
+      :root {{
+        color-scheme: dark;
+      }}
+      body {{
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(180deg, #1a1f23 0%, #14181b 46%, #101316 100%);
+        color: #eef2f5;
+        font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+      }}
+      .login-card {{
+        width: min(420px, calc(100% - 32px));
+        padding: 28px;
+        border-radius: 28px;
+        background: rgba(34, 38, 42, 0.92);
+        border: 1px solid rgba(111, 123, 132, 0.28);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+        display: grid;
+        gap: 16px;
+      }}
+      h1 {{
+        margin: 0;
+        font-size: 2rem;
+        letter-spacing: -0.04em;
+      }}
+      p {{
+        margin: 0;
+        color: #aab2ba;
+        line-height: 1.6;
+      }}
+      form {{
+        display: grid;
+        gap: 12px;
+      }}
+      input {{
+        min-height: 52px;
+        padding: 0 16px;
+        border-radius: 999px;
+        border: 1px solid #4e5861;
+        background: #252b30;
+        color: #eef2f5;
+        font: inherit;
+      }}
+      button {{
+        min-height: 52px;
+        border: none;
+        border-radius: 999px;
+        background: #5a636c;
+        color: #f6f8fa;
+        font: inherit;
+        cursor: pointer;
+      }}
+    </style>
+  </head>
+  <body>
+    <section class="login-card">
+      <p style="text-transform:uppercase;letter-spacing:0.12em;color:#72c1ad;font-size:0.78rem;font-weight:700;">Protected Access</p>
+      <h1>Enter passcode</h1>
+      <p>This dashboard is protected for LAN access. Enter the passcode to continue.</p>
+      {error_html}
+      <form method="post" action="/login">
+        <input type="password" name="code" placeholder="Passcode" autocomplete="current-password" autofocus />
+        <button type="submit">Unlock</button>
+      </form>
+    </section>
+  </body>
+</html>"""
+        data = html.encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store, max-age=0")
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
+
+        if parsed.path == "/login":
+            self.serve_login_page()
+            return
+
+        if not self.is_authenticated():
+            self.respond_login_required()
+            return
 
         if parsed.path == "/":
             self.serve_file("index.html", "text/html; charset=utf-8")
@@ -676,6 +795,26 @@ class StockDashboardHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
+
+        if parsed.path == "/login":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw_body = self.rfile.read(length).decode("utf-8")
+            params = urllib.parse.parse_qs(raw_body)
+            code = (params.get("code") or [""])[0].strip()
+            if code != ACCESS_CODE:
+                self.serve_login_page(error_message="Incorrect passcode.")
+                return
+
+            self.send_response(HTTPStatus.SEE_OTHER)
+            self.send_header("Location", "/")
+            self.send_header("Set-Cookie", "stock_dashboard_auth=1010; Path=/; HttpOnly; SameSite=Lax")
+            self.end_headers()
+            return
+
+        if not self.is_authenticated():
+            self.respond_login_required()
+            return
+
         if parsed.path != "/api/watchlist":
             self.send_error(HTTPStatus.NOT_FOUND)
             return
