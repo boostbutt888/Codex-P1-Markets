@@ -65,9 +65,10 @@
       <main>
         <section class="overview-panel">
           <div class="overview-header">
-            <div>
+            <div class="overview-copy">
               <p class="overview-kicker">Benchmark view</p>
               <h2>Watchlist average vs market benchmarks</h2>
+              <p class="overview-note">All benchmark lines are normalized to the same starting point.</p>
             </div>
             <div class="overview-metrics">
               <p id="overview-total-value" class="overview-total-value">Total watchlist value: --</p>
@@ -107,9 +108,11 @@
             <span class="stock-change"></span>
           </div>
         </div>
-        <p class="stock-meta"></p>
-        <p class="stock-live-status"></p>
-        <p class="stock-premarket"></p>
+        <div class="stock-info-block">
+          <p class="stock-meta"></p>
+          <p class="stock-live-status"></p>
+          <p class="stock-premarket"></p>
+        </div>
         <label class="stock-position-field">
           <span class="stock-position-label">Position</span>
           <input class="stock-position-input" type="text" inputmode="decimal" placeholder="Optional" />

@@ -67,6 +67,16 @@ function renderBenchmarkControls() {
     benchmarkControls.appendChild(toggle);
   });
 }
+
+function friendlyExchangeName(exchange) {
+  const mapping = {
+    NMS: "NASDAQ",
+    NYQ: "NYSE",
+    PCX: "NYSE Arca",
+    ASE: "NYSE American",
+  };
+  return mapping[exchange] || exchange;
+}
 function currencyFormatter(currency) {
   if (!currency) {
     return new Intl.NumberFormat("en-US", {
@@ -167,9 +177,9 @@ function formatPremarket(change, pct, price, marketState) {
 
 function formatLiveStatus(stock) {
   if (stock.isLive) {
-    return `Live source: ${stock.dataSource || "Yahoo Finance"}`;
+    return `Live quote source: ${stock.dataSource || "Yahoo Finance"}`;
   }
-  return `End-of-day source: ${stock.dataSource || "Unknown"}`;
+  return `Using end-of-day fallback: ${stock.dataSource || "Unknown"}`;
 }
 
 function liveBadgeLabel(stock) {
@@ -341,7 +351,7 @@ function renderOverview(stocks, benchmarks) {
     }
     return `${Math.abs(spread).toFixed(2)} points ${spread > 0 ? "ahead of" : "behind"} ${series.label}`;
   });
-  overviewSummary.textContent = `Normalized performance over ${currentRangeLabel()}: ${comparisons.join(" • ")}.`;
+  overviewSummary.textContent = `Over ${currentRangeLabel()}, your watchlist is ${comparisons.join(" • ")}.`;
 }
 
 async function getWatchlist() {
@@ -486,7 +496,12 @@ function renderCard(stock) {
   const changeNode = node.querySelector(".stock-change");
   changeNode.textContent = formatChange(stock.dayChange, stock.dayChangePct);
   changeNode.classList.add(positiveTrend ? "positive" : "negative");
-  node.querySelector(".stock-meta").textContent = [stock.exchange, displayCurrency()].filter(Boolean).join(" • ");
+  node.querySelector(".stock-meta").textContent = [
+    friendlyExchangeName(stock.exchange),
+    displayCurrency(),
+  ]
+    .filter(Boolean)
+    .join(" • ");
   positionValue.textContent = formatPositionValue(stock.position, stock.price, stock.currency);
   premarketNode.textContent = formatPremarket(
     stock.preMarketChange,

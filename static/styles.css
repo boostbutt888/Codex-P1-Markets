@@ -152,8 +152,13 @@ input {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  align-items: end;
+  align-items: start;
   flex-wrap: wrap;
+}
+
+.overview-copy {
+  display: grid;
+  gap: 6px;
 }
 
 .overview-metrics {
@@ -187,17 +192,28 @@ input {
   letter-spacing: -0.04em;
 }
 
+.overview-note {
+  margin: 0;
+  max-width: 52ch;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .benchmark-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 20px;
+  background: rgba(255, 250, 242, 0.78);
+  border: 1px solid rgba(216, 200, 181, 0.65);
 }
 
 .benchmark-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 7px 11px;
   border-radius: 999px;
   background: var(--panel-strong);
   border: 1px solid var(--line);
@@ -268,7 +284,7 @@ input {
 
 .stock-card {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   padding: 22px;
   border-radius: 24px;
   background: rgba(255, 252, 247, 0.88);
@@ -287,7 +303,7 @@ input {
 
 .price-block {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .card-actions {
@@ -331,9 +347,20 @@ input {
   color: var(--muted);
 }
 
+.stock-info-block {
+  display: grid;
+  gap: 6px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(216, 200, 181, 0.5);
+}
+
 .stock-position-field {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 250, 242, 0.78);
+  border: 1px solid rgba(216, 200, 181, 0.6);
 }
 
 .stock-position-input {
@@ -352,16 +379,18 @@ input {
 }
 
 .stock-price {
-  font-size: 1.8rem;
+  font-size: 2rem;
   letter-spacing: -0.04em;
 }
 
 .stock-change.positive {
   color: var(--accent);
+  font-weight: 700;
 }
 
 .stock-change.negative {
   color: var(--danger);
+  font-weight: 700;
 }
 
 .chart {
@@ -436,6 +465,10 @@ input {
 
   .overview-panel {
     padding: 18px;
+  }
+
+  .overview-metrics {
+    justify-items: start;
   }
 
   .overview-chart {

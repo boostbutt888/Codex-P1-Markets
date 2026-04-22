@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 from datetime import datetime, timedelta
+from errno import EADDRINUSE
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -359,8 +360,21 @@ class StockDashboardHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    server = ThreadingHTTPServer((HOST, PORT), StockDashboardHandler)
-    print(f"Stock dashboard running at http://{HOST}:{PORT}")
+    selected_port = PORT
+    try:
+        server = ThreadingHTTPServer((HOST, selected_port), StockDashboardHandler)
+    except OSError as exc:
+        if exc.errno != EADDRINUSE:
+            raise
+        server = ThreadingHTTPServer((HOST, 0), StockDashboardHandler)
+        selected_port = int(server.server_address[1])
+        print(
+            f"Port {PORT} was busy, so the dashboard moved to http://{HOST}:{selected_port}",
+            flush=True,
+        )
+    else:
+        print(f"Stock dashboard running at http://{HOST}:{selected_port}", flush=True)
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:

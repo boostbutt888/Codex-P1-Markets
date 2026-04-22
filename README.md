@@ -64,6 +64,45 @@ On a new machine, clone it first:
 git clone https://github.com/boostbutt888/Codex-P1-Markets.git
 ```
 
+## Windows 11 Setup
+
+Before using the app on Windows:
+
+1. Install Python 3
+2. Install Git for Windows
+3. Clone the repository
+4. Run `run.bat`
+
+Check Python:
+
+```bash
+py --version
+```
+
+If `py` does not work, try:
+
+```bash
+python --version
+```
+
+Clone and run on Windows:
+
+```bash
+git clone https://github.com/boostbutt888/Codex-P1-Markets.git
+cd Codex-P1-Markets
+run.bat
+```
+
+Set your Git identity once on Windows:
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+If port `8000` is already in use, the app will automatically fall back to another
+available localhost port and print the new URL in the terminal.
+
 ## Customize it
 
 - Add or remove symbols in the UI
