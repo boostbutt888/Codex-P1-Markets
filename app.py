@@ -44,6 +44,96 @@ MARKET_SEGMENTS = [
     {"symbol": "XLRE", "label": "Real Estate", "group": "Sectors"},
     {"symbol": "XLC", "label": "Communication Services", "group": "Sectors"},
 ]
+MARKET_BROAD_STOCKS = {
+    "SPY": [
+        {"symbol": "AAPL", "label": "Apple"},
+        {"symbol": "MSFT", "label": "Microsoft"},
+        {"symbol": "NVDA", "label": "NVIDIA"},
+        {"symbol": "AMZN", "label": "Amazon"},
+        {"symbol": "META", "label": "Meta"},
+        {"symbol": "GOOGL", "label": "Alphabet"},
+        {"symbol": "BRK-B", "label": "Berkshire Hathaway"},
+        {"symbol": "LLY", "label": "Eli Lilly"},
+        {"symbol": "AVGO", "label": "Broadcom"},
+        {"symbol": "JPM", "label": "JPMorgan"},
+        {"symbol": "V", "label": "Visa"},
+        {"symbol": "XOM", "label": "Exxon Mobil"},
+        {"symbol": "WMT", "label": "Walmart"},
+        {"symbol": "UNH", "label": "UnitedHealth"},
+        {"symbol": "COST", "label": "Costco"},
+        {"symbol": "PG", "label": "Procter & Gamble"},
+        {"symbol": "JNJ", "label": "Johnson & Johnson"},
+        {"symbol": "HD", "label": "Home Depot"},
+        {"symbol": "MA", "label": "Mastercard"},
+        {"symbol": "NFLX", "label": "Netflix"},
+    ],
+    "QQQ": [
+        {"symbol": "MSFT", "label": "Microsoft"},
+        {"symbol": "AAPL", "label": "Apple"},
+        {"symbol": "NVDA", "label": "NVIDIA"},
+        {"symbol": "AMZN", "label": "Amazon"},
+        {"symbol": "META", "label": "Meta"},
+        {"symbol": "GOOGL", "label": "Alphabet"},
+        {"symbol": "AVGO", "label": "Broadcom"},
+        {"symbol": "COST", "label": "Costco"},
+        {"symbol": "NFLX", "label": "Netflix"},
+        {"symbol": "AMD", "label": "AMD"},
+        {"symbol": "ADBE", "label": "Adobe"},
+        {"symbol": "PEP", "label": "PepsiCo"},
+        {"symbol": "CSCO", "label": "Cisco"},
+        {"symbol": "INTU", "label": "Intuit"},
+        {"symbol": "TXN", "label": "Texas Instruments"},
+        {"symbol": "QCOM", "label": "Qualcomm"},
+        {"symbol": "AMGN", "label": "Amgen"},
+        {"symbol": "ISRG", "label": "Intuitive Surgical"},
+        {"symbol": "BKNG", "label": "Booking"},
+        {"symbol": "CMCSA", "label": "Comcast"},
+    ],
+    "DIA": [
+        {"symbol": "MSFT", "label": "Microsoft"},
+        {"symbol": "AAPL", "label": "Apple"},
+        {"symbol": "JPM", "label": "JPMorgan"},
+        {"symbol": "UNH", "label": "UnitedHealth"},
+        {"symbol": "GS", "label": "Goldman Sachs"},
+        {"symbol": "HD", "label": "Home Depot"},
+        {"symbol": "MCD", "label": "McDonald's"},
+        {"symbol": "CAT", "label": "Caterpillar"},
+        {"symbol": "AMGN", "label": "Amgen"},
+        {"symbol": "CRM", "label": "Salesforce"},
+        {"symbol": "AXP", "label": "American Express"},
+        {"symbol": "V", "label": "Visa"},
+        {"symbol": "HON", "label": "Honeywell"},
+        {"symbol": "BA", "label": "Boeing"},
+        {"symbol": "IBM", "label": "IBM"},
+        {"symbol": "JNJ", "label": "Johnson & Johnson"},
+        {"symbol": "MMM", "label": "3M"},
+        {"symbol": "TRV", "label": "Travelers"},
+        {"symbol": "PG", "label": "Procter & Gamble"},
+        {"symbol": "WMT", "label": "Walmart"},
+    ],
+    "IWM": [
+        {"symbol": "SMCI", "label": "Super Micro"},
+        {"symbol": "PLTR", "label": "Palantir"},
+        {"symbol": "APP", "label": "AppLovin"},
+        {"symbol": "FSLR", "label": "First Solar"},
+        {"symbol": "CELH", "label": "Celsius"},
+        {"symbol": "RKLB", "label": "Rocket Lab"},
+        {"symbol": "SOFI", "label": "SoFi"},
+        {"symbol": "DUOL", "label": "Duolingo"},
+        {"symbol": "W", "label": "Wayfair"},
+        {"symbol": "GTLB", "label": "GitLab"},
+        {"symbol": "UPST", "label": "Upstart"},
+        {"symbol": "DOCN", "label": "DigitalOcean"},
+        {"symbol": "IONQ", "label": "IonQ"},
+        {"symbol": "AFRM", "label": "Affirm"},
+        {"symbol": "RIVN", "label": "Rivian"},
+        {"symbol": "PATH", "label": "UiPath"},
+        {"symbol": "CFLT", "label": "Confluent"},
+        {"symbol": "S", "label": "SentinelOne"},
+        {"symbol": "ZI", "label": "ZoomInfo"},
+        {"symbol": "BILL", "label": "BILL"},
+    ],
+}
 MARKET_SECTOR_STOCKS = {
     "XLK": [
         {"symbol": "MSFT", "label": "Microsoft"},
@@ -54,6 +144,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "ADBE", "label": "Adobe"},
         {"symbol": "CRM", "label": "Salesforce"},
         {"symbol": "AMD", "label": "AMD"},
+        {"symbol": "CSCO", "label": "Cisco"},
+        {"symbol": "INTU", "label": "Intuit"},
+        {"symbol": "IBM", "label": "IBM"},
+        {"symbol": "QCOM", "label": "Qualcomm"},
     ],
     "XLF": [
         {"symbol": "BRK-B", "label": "Berkshire Hathaway"},
@@ -64,6 +158,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "WFC", "label": "Wells Fargo"},
         {"symbol": "GS", "label": "Goldman Sachs"},
         {"symbol": "MS", "label": "Morgan Stanley"},
+        {"symbol": "BLK", "label": "BlackRock"},
+        {"symbol": "SCHW", "label": "Charles Schwab"},
+        {"symbol": "C", "label": "Citigroup"},
+        {"symbol": "AXP", "label": "American Express"},
     ],
     "XLV": [
         {"symbol": "LLY", "label": "Eli Lilly"},
@@ -74,6 +172,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "TMO", "label": "Thermo Fisher"},
         {"symbol": "PFE", "label": "Pfizer"},
         {"symbol": "ABT", "label": "Abbott"},
+        {"symbol": "DHR", "label": "Danaher"},
+        {"symbol": "BMY", "label": "Bristol Myers"},
+        {"symbol": "AMGN", "label": "Amgen"},
+        {"symbol": "ISRG", "label": "Intuitive Surgical"},
     ],
     "XLY": [
         {"symbol": "AMZN", "label": "Amazon"},
@@ -84,6 +186,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "SBUX", "label": "Starbucks"},
         {"symbol": "LOW", "label": "Lowe's"},
         {"symbol": "BKNG", "label": "Booking"},
+        {"symbol": "TJX", "label": "TJX"},
+        {"symbol": "MAR", "label": "Marriott"},
+        {"symbol": "CMG", "label": "Chipotle"},
+        {"symbol": "ROST", "label": "Ross Stores"},
     ],
     "XLP": [
         {"symbol": "PG", "label": "Procter & Gamble"},
@@ -94,6 +200,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "PM", "label": "Philip Morris"},
         {"symbol": "MDLZ", "label": "Mondelez"},
         {"symbol": "CL", "label": "Colgate"},
+        {"symbol": "MO", "label": "Altria"},
+        {"symbol": "KR", "label": "Kroger"},
+        {"symbol": "KMB", "label": "Kimberly-Clark"},
+        {"symbol": "GIS", "label": "General Mills"},
     ],
     "XLI": [
         {"symbol": "GE", "label": "GE Aerospace"},
@@ -104,6 +214,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "ETN", "label": "Eaton"},
         {"symbol": "LMT", "label": "Lockheed Martin"},
         {"symbol": "DE", "label": "Deere"},
+        {"symbol": "BA", "label": "Boeing"},
+        {"symbol": "UNP", "label": "Union Pacific"},
+        {"symbol": "GD", "label": "General Dynamics"},
+        {"symbol": "EMR", "label": "Emerson"},
     ],
     "XLE": [
         {"symbol": "XOM", "label": "Exxon Mobil"},
@@ -114,6 +228,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "MPC", "label": "Marathon Petroleum"},
         {"symbol": "PSX", "label": "Phillips 66"},
         {"symbol": "OXY", "label": "Occidental"},
+        {"symbol": "VLO", "label": "Valero"},
+        {"symbol": "KMI", "label": "Kinder Morgan"},
+        {"symbol": "WMB", "label": "Williams"},
+        {"symbol": "BKR", "label": "Baker Hughes"},
     ],
     "XLB": [
         {"symbol": "LIN", "label": "Linde"},
@@ -124,6 +242,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "NUE", "label": "Nucor"},
         {"symbol": "DD", "label": "DuPont"},
         {"symbol": "CTVA", "label": "Corteva"},
+        {"symbol": "MLM", "label": "Martin Marietta"},
+        {"symbol": "VMC", "label": "Vulcan Materials"},
+        {"symbol": "DOW", "label": "Dow"},
+        {"symbol": "IFF", "label": "IFF"},
     ],
     "XLU": [
         {"symbol": "NEE", "label": "NextEra Energy"},
@@ -134,6 +256,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "D", "label": "Dominion"},
         {"symbol": "XEL", "label": "Xcel Energy"},
         {"symbol": "PEG", "label": "Public Service Enterprise"},
+        {"symbol": "ED", "label": "Con Edison"},
+        {"symbol": "AEE", "label": "Ameren"},
+        {"symbol": "ES", "label": "Eversource"},
+        {"symbol": "WEC", "label": "WEC Energy"},
     ],
     "XLRE": [
         {"symbol": "AMT", "label": "American Tower"},
@@ -144,6 +270,10 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "O", "label": "Realty Income"},
         {"symbol": "PSA", "label": "Public Storage"},
         {"symbol": "DLR", "label": "Digital Realty"},
+        {"symbol": "CBRE", "label": "CBRE"},
+        {"symbol": "AVB", "label": "AvalonBay"},
+        {"symbol": "EQR", "label": "Equity Residential"},
+        {"symbol": "VICI", "label": "Vici Properties"},
     ],
     "XLC": [
         {"symbol": "GOOGL", "label": "Alphabet"},
@@ -154,8 +284,13 @@ MARKET_SECTOR_STOCKS = {
         {"symbol": "VZ", "label": "Verizon"},
         {"symbol": "CMCSA", "label": "Comcast"},
         {"symbol": "T", "label": "AT&T"},
+        {"symbol": "CHTR", "label": "Charter"},
+        {"symbol": "EA", "label": "Electronic Arts"},
+        {"symbol": "ROKU", "label": "Roku"},
+        {"symbol": "PARA", "label": "Paramount"},
     ],
 }
+MARKET_DRILLDOWN_STOCKS = {**MARKET_BROAD_STOCKS, **MARKET_SECTOR_STOCKS}
 
 
 def load_watchlist() -> dict:
@@ -381,7 +516,16 @@ def fetch_chart_from_yahoo(symbol: str, range_value: str = "3mo") -> dict:
     premarket_price = quote_result.get("preMarketPrice")
     premarket_change = quote_result.get("preMarketChange")
     premarket_change_pct = quote_result.get("preMarketChangePercent")
-    market_state = quote_result.get("marketState") or ""
+    market_state = (quote_result.get("marketState") or "").upper()
+
+    if premarket_price is None and market_state.startswith("PRE"):
+        premarket_price = quote_result.get("regularMarketPrice") or meta.get("regularMarketPrice")
+
+    if premarket_price is not None and previous_close not in (None, 0):
+        if premarket_change is None:
+            premarket_change = float(premarket_price) - float(previous_close)
+        if premarket_change_pct is None:
+            premarket_change_pct = (float(premarket_change) / float(previous_close)) * 100
 
     return {
         "symbol": symbol,
@@ -491,21 +635,23 @@ def fetch_market_overview() -> dict:
     return {"segments": snapshots, "errors": failures}
 
 
-def fetch_market_sector(symbol: str) -> dict:
+def fetch_market_sector(symbol: str, count: int = 12) -> dict:
     sector_symbol = symbol.strip().upper()
-    entries = MARKET_SECTOR_STOCKS.get(sector_symbol)
+    entries = MARKET_DRILLDOWN_STOCKS.get(sector_symbol)
     if not entries:
         raise ValueError(f"Unsupported market sector: {sector_symbol}")
+    safe_count = max(4, min(count, len(entries)))
 
     sector_label = next((segment["label"] for segment in MARKET_SEGMENTS if segment["symbol"] == sector_symbol), sector_symbol)
     stock_segments = [
         {"symbol": entry["symbol"], "label": entry["label"], "group": sector_label}
-        for entry in entries
+        for entry in entries[:safe_count]
     ]
     snapshots, failures = fetch_market_snapshots(stock_segments)
     return {
         "sectorSymbol": sector_symbol,
         "sectorLabel": sector_label,
+        "requestedCount": safe_count,
         "stocks": snapshots,
         "errors": failures,
     }
@@ -760,12 +906,14 @@ class StockDashboardHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/market-sector":
             params = urllib.parse.parse_qs(parsed.query)
             symbol = (params.get("symbol") or [""])[0].strip().upper()
+            count_value = (params.get("count") or ["12"])[0]
             if not symbol:
                 self.respond_json({"error": "symbol is required"}, status=HTTPStatus.BAD_REQUEST)
                 return
             try:
-                self.respond_json(fetch_market_sector(symbol))
-            except ValueError as exc:
+                count = int(count_value)
+                self.respond_json(fetch_market_sector(symbol, count=count))
+            except (ValueError, TypeError) as exc:
                 self.respond_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Stock Dashboard</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260422r" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260422w" />
   </head>
   <body>
     <div class="page-shell">
@@ -166,7 +166,19 @@
             <span class="panel-toggle-icon" aria-hidden="true"></span>
           </button>
           <div class="panel-body">
-            <div id="market-summary" class="market-summary">Loading market overview…</div>
+            <div class="market-toolbar">
+              <div id="market-summary" class="market-summary">Loading market overview…</div>
+              <label class="range-picker market-count-picker">
+                Sector stocks
+                <select id="market-stock-count-select">
+                  <option value="8">8</option>
+                  <option value="12" selected>12</option>
+                  <option value="16">16</option>
+                  <option value="20">20</option>
+                  <option value="999">All</option>
+                </select>
+              </label>
+            </div>
             <div id="market-groups" class="market-groups" aria-live="polite"></div>
             <div id="sector-detail" class="sector-detail" hidden></div>
           </div>
@@ -186,6 +198,7 @@
             <button class="remove-button" type="button">Remove</button>
           </div>
         </div>
+        <svg class="chart chart-top" viewBox="0 0 360 140" preserveAspectRatio="none" role="img"></svg>
         <div class="price-row">
           <div class="price-block">
             <span class="stock-price"></span>
@@ -197,15 +210,37 @@
           <p class="stock-live-status"></p>
           <p class="stock-premarket"></p>
         </div>
-        <label class="stock-position-field">
-          <span class="stock-position-label">Position</span>
-          <input class="stock-position-input" type="text" inputmode="decimal" placeholder="Optional" />
-        </label>
-        <p class="stock-position-value"></p>
-        <svg class="chart" viewBox="0 0 360 140" preserveAspectRatio="none" role="img"></svg>
+        <div class="stock-position-row">
+          <button class="stock-position-button" type="button">Position</button>
+          <p class="stock-position-value"></p>
+        </div>
       </article>
     </template>
 
-    <script src="/static/app.js?v=20260422r" defer></script>
+    <div id="position-modal" class="modal-shell" hidden>
+      <div class="modal-backdrop" data-close-modal="true"></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="position-modal-title">
+        <div class="modal-header">
+          <div>
+            <p class="overview-kicker">Position</p>
+            <h2 id="position-modal-title" class="modal-title">Edit position</h2>
+          </div>
+          <button id="position-modal-close" class="modal-close" type="button" aria-label="Close">Close</button>
+        </div>
+        <div class="modal-body">
+          <p id="position-modal-symbol" class="modal-note"></p>
+          <label class="field-group">
+            Shares / units
+            <input id="position-modal-input" type="text" inputmode="decimal" placeholder="Optional" />
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button id="position-modal-clear" class="button" type="button">Clear</button>
+          <button id="position-modal-save" class="button button-primary" type="button">Save</button>
+        </div>
+      </section>
+    </div>
+
+    <script src="/static/app.js?v=20260422w" defer></script>
   </body>
 </html>

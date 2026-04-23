@@ -454,6 +454,18 @@ input {
   font-weight: 600;
 }
 
+.market-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.market-count-picker select {
+  min-width: 110px;
+}
+
 .market-groups {
   display: grid;
   gap: 18px;
@@ -556,7 +568,40 @@ input {
 }
 
 .sector-stock-grid {
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+}
+
+.sector-stock-tile {
+  min-height: 42px;
+  padding: 8px 7px;
+  gap: 3px;
+  border-radius: 12px;
+}
+
+.sector-stock-tile .market-tile-label {
+  font-size: 0.58rem;
+  line-height: 1.15;
+  opacity: 0.88;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sector-stock-tile .market-tile-change {
+  margin-top: 0;
+  font-size: 0.84rem;
+  letter-spacing: -0.02em;
+}
+
+.sector-stock-tile .market-tile-symbol {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.sector-stock-tile .market-tile-meta {
+  display: none;
 }
 
 .overview-header {
@@ -712,6 +757,10 @@ input {
   align-items: baseline;
 }
 
+.price-row {
+  margin-top: 6px;
+}
+
 .price-block {
   display: grid;
   gap: 4px;
@@ -765,18 +814,25 @@ input {
   border-top: 1px solid var(--line-soft);
 }
 
-.stock-position-field {
-  display: grid;
-  gap: 6px;
-  padding: 12px;
-  border-radius: 18px;
-  background: var(--panel-soft);
+.stock-position-button {
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
   border: 1px solid var(--border-soft);
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.stock-position-input {
-  width: 100%;
-  min-width: 0;
+.stock-position-row {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .stock-symbol,
@@ -810,6 +866,10 @@ input {
   overflow: visible;
 }
 
+.chart-top {
+  margin-top: 10px;
+}
+
 .chart path.line {
   fill: none;
   stroke-width: 3.5;
@@ -832,6 +892,75 @@ input {
 
 .remove-button:hover {
   color: var(--danger);
+}
+
+.modal-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+}
+
+.modal-shell[hidden] {
+  display: none !important;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 10, 12, 0.58);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+.modal-card {
+  position: relative;
+  z-index: 1;
+  width: min(420px, calc(100% - 28px));
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 24px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+
+.modal-header,
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.modal-body {
+  display: grid;
+  gap: 12px;
+}
+
+.modal-title,
+.modal-note {
+  margin: 0;
+}
+
+.modal-title {
+  font-size: 1.4rem;
+  letter-spacing: -0.03em;
+}
+
+.modal-note {
+  color: var(--muted);
+}
+
+.modal-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
 }
 
 @media (max-width: 760px) {

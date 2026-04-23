@@ -19,12 +19,37 @@ const newsGroupsRoot = document.querySelector("#news-groups");
 const marketSummary = document.querySelector("#market-summary");
 const marketGroupsRoot = document.querySelector("#market-groups");
 const sectorDetailRoot = document.querySelector("#sector-detail");
+const marketStockCountSelect = document.querySelector("#market-stock-count-select");
+const positionModal = document.querySelector("#position-modal");
+const positionModalClose = document.querySelector("#position-modal-close");
+const positionModalSave = document.querySelector("#position-modal-save");
+const positionModalClear = document.querySelector("#position-modal-clear");
+const positionModalInput = document.querySelector("#position-modal-input");
+const positionModalSymbol = document.querySelector("#position-modal-symbol");
 const collapsiblePanels = document.querySelectorAll(".collapsible-panel");
 
 let watchlist = [];
 let usdToSgdRate = 1;
 let autoRefreshTimer = null;
 let selectedMarketSector = null;
+let activePositionSymbol = null;
+const MARKET_DRILLDOWN_SYMBOLS = new Set([
+  "SPY",
+  "QQQ",
+  "DIA",
+  "IWM",
+  "XLK",
+  "XLF",
+  "XLV",
+  "XLY",
+  "XLP",
+  "XLI",
+  "XLE",
+  "XLB",
+  "XLU",
+  "XLRE",
+  "XLC",
+]);
 const WATCHLIST_AVERAGE_COLOR = "#1f6f5f";
 const BENCHMARKS = [
   { key: "sp500", symbol: "SPY", label: "S&P 500", shortLabel: "S&P 500 (SPY)", color: "#c4672f", enabled: true },
@@ -44,6 +69,7 @@ const THEME_STORAGE_KEY = "stock-dashboard-theme";
 const COLLAPSE_STORAGE_PREFIX = "stock-dashboard-collapse-";
 const REFRESH_MODE_STORAGE_KEY = "stock-dashboard-refresh-mode";
 const REFRESH_INTERVAL_STORAGE_KEY = "stock-dashboard-refresh-interval";
+const MARKET_STOCK_COUNT_STORAGE_KEY = "stock-dashboard-market-stock-count";
 
 function resolveAutoTheme() {
   const currentHour = new Date().getHours();
@@ -61,6 +87,10 @@ function initializeTheme() {
     themeSelect.value = savedTheme;
   }
   applyTheme(savedTheme);
+}
+
+function selectedMarketStockCount() {
+  return Number(marketStockCountSelect?.value || 12);
 }
 
 function setRefreshIntervalVisibility() {
@@ -112,6 +142,13 @@ function initializeRefreshControls() {
 
   setRefreshIntervalVisibility();
   startAutoRefresh();
+}
+
+function initializeMarketControls() {
+  const savedCount = localStorage.getItem(MARKET_STOCK_COUNT_STORAGE_KEY) || "12";
+  if (marketStockCountSelect) {
+    marketStockCountSelect.value = savedCount;
+  }
 }
 
 function initializeCollapsibles() {
@@ -230,18 +267,62 @@ function formatPositionInput(position) {
 
 function formatPositionValue(position, price, currency) {
   if (position === null || position === undefined || position === "") {
-    return "Position value: --";
+    return "Position: -- • Value: --";
   }
 
   const numericPosition = Number(position);
   const numericPrice = Number(price);
   if (Number.isNaN(numericPosition) || Number.isNaN(numericPrice)) {
-    return "Position value: --";
+    return "Position: -- • Value: --";
   }
 
-  return `Position value: ${currencyFormatter(displayCurrency()).format(
+  return `Position: ${formatPositionInput(numericPosition)} • Value: ${currencyFormatter(displayCurrency()).format(
     convertFromUsd(numericPosition * numericPrice)
   )}`;
+}
+
+function openPositionModal(stock) {
+  if (!positionModal || !positionModalInput || !positionModalSymbol) {
+    return;
+  }
+
+  activePositionSymbol = stock.symbol;
+  positionModalSymbol.textContent = `${stock.symbol}${stock.label && stock.label !== stock.symbol ? ` • ${stock.label}` : ""}`;
+  positionModalInput.value = formatPositionInput(stock.position);
+  positionModal.hidden = false;
+  document.body.style.overflow = "hidden";
+  positionModalInput.focus();
+  positionModalInput.select();
+}
+
+function closePositionModal() {
+  if (!positionModal) {
+    return;
+  }
+
+  positionModal.hidden = true;
+  document.body.style.overflow = "";
+  activePositionSymbol = null;
+}
+
+async function savePositionForSymbol(symbol, rawValue) {
+  const nextPosition = rawValue === "" ? null : Number(rawValue);
+
+  if (rawValue !== "" && Number.isNaN(nextPosition)) {
+    throw new Error(`Position for ${symbol} must be a valid number.`);
+  }
+
+  watchlist = watchlist.map((entry) =>
+    entry.symbol === symbol
+      ? {
+          ...entry,
+          ...(nextPosition === null ? { position: undefined } : { position: nextPosition }),
+        }
+      : entry
+  );
+
+  await saveWatchlist();
+  return nextPosition;
 }
 
 function currentRangeLabel() {
@@ -508,9 +589,10 @@ function renderMarketOverview(segments) {
     grid.className = "market-grid";
 
     items.forEach((segment) => {
-      const tile = document.createElement(segment.group === "Sectors" ? "button" : "article");
+      const isDrilldownTile = MARKET_DRILLDOWN_SYMBOLS.has(segment.symbol);
+      const tile = document.createElement(isDrilldownTile ? "button" : "article");
       tile.className = "market-tile";
-      if (segment.group === "Sectors") {
+      if (isDrilldownTile) {
         tile.type = "button";
         tile.classList.add("market-tile-button");
         if (selectedMarketSector === segment.symbol) {
@@ -570,7 +652,7 @@ async function loadMarketOverview() {
 
   renderMarketOverview(payload.segments || []);
   const sectorSymbols = new Set(
-    (payload.segments || []).filter((segment) => segment.group === "Sectors").map((segment) => segment.symbol)
+    (payload.segments || []).filter((segment) => MARKET_DRILLDOWN_SYMBOLS.has(segment.symbol)).map((segment) => segment.symbol)
   );
   if (selectedMarketSector && !sectorSymbols.has(selectedMarketSector)) {
     selectedMarketSector = null;
@@ -590,7 +672,11 @@ async function loadSectorDetail() {
 
   sectorDetailRoot.hidden = false;
   sectorDetailRoot.textContent = "Loading sector stock map…";
-  const response = await fetch(`/api/market-sector?symbol=${encodeURIComponent(selectedMarketSector)}`);
+  const response = await fetch(
+    `/api/market-sector?symbol=${encodeURIComponent(selectedMarketSector)}&count=${encodeURIComponent(
+      selectedMarketStockCount()
+    )}`
+  );
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.error || "Unable to load sector stock map");
@@ -622,14 +708,21 @@ function renderSectorDetail(payload) {
 
   const note = document.createElement("p");
   note.className = "sector-detail-note";
-  note.textContent = "Representative stocks inside the selected sector.";
+  note.textContent = "Representative stocks inside the selected market segment.";
 
   header.append(title, note);
 
   const grid = document.createElement("div");
   grid.className = "market-grid sector-stock-grid";
 
-  (payload.stocks || []).forEach((stock) => {
+  (payload.stocks || [])
+    .slice()
+    .sort((left, right) => {
+      const leftValue = Number(left.dayChangePct ?? -999);
+      const rightValue = Number(right.dayChangePct ?? -999);
+      return rightValue - leftValue;
+    })
+    .forEach((stock) => {
     const tile = document.createElement("article");
     tile.className = "market-tile sector-stock-tile";
     if (stock.dayChangePct !== null && stock.dayChangePct !== undefined) {
@@ -658,7 +751,7 @@ function renderSectorDetail(payload) {
 
     tile.append(label, symbol, change, meta);
     grid.appendChild(tile);
-  });
+    });
 
   sectorDetailRoot.append(header, grid);
 }
@@ -905,12 +998,11 @@ function renderCard(stock) {
   const node = template.content.firstElementChild.cloneNode(true);
   node.querySelector(".stock-label").textContent = stock.label || stock.symbol;
   node.querySelector(".stock-symbol").textContent = stock.symbol;
-  const positionInput = node.querySelector(".stock-position-input");
+  const positionButton = node.querySelector(".stock-position-button");
   const positionValue = node.querySelector(".stock-position-value");
   const premarketNode = node.querySelector(".stock-premarket");
   const liveStatusNode = node.querySelector(".stock-live-status");
   const liveBadgeNode = node.querySelector(".stock-live-badge");
-  positionInput.value = formatPositionInput(stock.position);
   positionValue.textContent = formatPositionValue(stock.position, stock.price, stock.currency);
   premarketNode.textContent = formatPremarket(
     stock.preMarketChange,
@@ -930,31 +1022,7 @@ function renderCard(stock) {
     await loadCharts();
   });
 
-  positionInput.addEventListener("change", async () => {
-    const rawValue = positionInput.value.trim();
-    const nextPosition = rawValue === "" ? null : Number(rawValue);
-
-    if (rawValue !== "" && Number.isNaN(nextPosition)) {
-      updateStatus(`Position for ${stock.symbol} must be a valid number.`, true);
-      positionInput.value = formatPositionInput(stock.position);
-      return;
-    }
-
-    watchlist = watchlist.map((entry) =>
-      entry.symbol === stock.symbol
-        ? {
-            ...entry,
-            ...(nextPosition === null ? { position: undefined } : { position: nextPosition }),
-          }
-        : entry
-    );
-
-    stock.position = nextPosition;
-    positionValue.textContent = formatPositionValue(stock.position, stock.price, stock.currency);
-    await saveWatchlist();
-    updateStatus(`Saved position for ${stock.symbol}.`);
-    await loadCharts();
-  });
+  positionButton.addEventListener("click", () => openPositionModal(stock));
 
   if (stock.error) {
     node.querySelector(".stock-price").textContent = "Unavailable";
@@ -1045,6 +1113,62 @@ refreshIntervalInput.addEventListener("change", () => {
   localStorage.setItem(REFRESH_INTERVAL_STORAGE_KEY, String(nextMinutes));
   startAutoRefresh();
 });
+marketStockCountSelect.addEventListener("change", () => {
+  localStorage.setItem(MARKET_STOCK_COUNT_STORAGE_KEY, marketStockCountSelect.value);
+  if (selectedMarketSector) {
+    loadSectorDetail().catch(handleError);
+  }
+});
+positionModalClose?.addEventListener("click", closePositionModal);
+positionModal?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLElement && target.dataset.closeModal === "true") {
+    closePositionModal();
+  }
+});
+positionModalClear?.addEventListener("click", async () => {
+  if (!activePositionSymbol) {
+    return;
+  }
+
+  try {
+    await savePositionForSymbol(activePositionSymbol, "");
+    updateStatus(`Cleared position for ${activePositionSymbol}.`);
+    closePositionModal();
+    await loadCharts();
+  } catch (error) {
+    handleError(error);
+  }
+});
+positionModalSave?.addEventListener("click", async () => {
+  if (!activePositionSymbol || !positionModalInput) {
+    return;
+  }
+
+  try {
+    await savePositionForSymbol(activePositionSymbol, positionModalInput.value.trim());
+    updateStatus(`Saved position for ${activePositionSymbol}.`);
+    closePositionModal();
+    await loadCharts();
+  } catch (error) {
+    handleError(error);
+  }
+});
+positionModalInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    positionModalSave?.click();
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePositionModal();
+  }
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && positionModal && !positionModal.hidden) {
+    closePositionModal();
+  }
+});
 themeSelect.addEventListener("change", () => {
   const selectedTheme = themeSelect.value;
   localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
@@ -1061,8 +1185,10 @@ function handleError(error) {
 
 async function init() {
   try {
+    closePositionModal();
     initializeTheme();
     initializeRefreshControls();
+    initializeMarketControls();
     initializeCollapsibles();
     renderBenchmarkControls();
     try {
