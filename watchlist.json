@@ -2,23 +2,36 @@
   "symbols": [
     {
       "symbol": "AAPL",
-      "label": "AAPL"
+      "label": "AAPL",
+      "position": 0.0
     },
     {
       "symbol": "TSLA",
-      "label": "TSLA"
+      "label": "TSLA",
+      "position": 0.0
     },
     {
       "symbol": "AMZN",
-      "label": "AMZN"
+      "label": "AMZN",
+      "position": 0.0
     },
     {
       "symbol": "AMD",
-      "label": "AMD"
+      "label": "AMD",
+      "position": 0.0
     },
     {
       "symbol": "GOOG",
-      "label": "GOOG"
+      "label": "GOOG",
+      "position": 0.0
+    },
+    {
+      "symbol": "NVDA",
+      "label": "NVDA"
+    },
+    {
+      "symbol": "INTL",
+      "label": "INTL"
     }
   ]
 }
