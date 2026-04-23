@@ -6,6 +6,8 @@ watchlist in a file on disk.
 This repository is the shared stock market monitoring app intended to work
 across your computers while still running locally on each machine.
 
+For day-to-day usage instructions, see [MANUAL.md](/Users/thejackal/Documents/New project/MANUAL.md).
+
 ## What it does
 
 - Serves a dashboard on `http://127.0.0.1:8000`
