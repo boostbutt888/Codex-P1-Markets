@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Stock Dashboard</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260422w" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260428a" />
   </head>
   <body>
     <div class="page-shell">
@@ -13,7 +13,7 @@
           <p class="eyebrow">Local-only watchlist</p>
           <h1>Daily stock charts for the companies you care about.</h1>
           <p class="hero-copy">
-            This dashboard runs on your Mac, stores your watchlist locally, and
+            This dashboard runs on your devices, stores your watchlist locally, and
             pulls fresh daily market data only when you ask for it.
           </p>
         </div>
@@ -53,6 +53,7 @@
                 <option value="auto" selected>Auto</option>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
+                <option value="random">Random</option>
               </select>
             </label>
             <label class="range-picker">
@@ -96,17 +97,39 @@
           </button>
           <div class="panel-body">
             <section class="watchlist-panel">
+              <div class="watchlist-view-bar">
+                <div class="watchlist-view-copy">
+                  <p class="overview-kicker">View Watchlist</p>
+                  <p class="watchlist-view-note">Choose which region to show below. Benchmark View follows this selector.</p>
+                </div>
+                <label class="range-picker watchlist-view-picker">
+                  Watchlist region
+                  <select id="market-select">
+                    <option value="US" selected>US</option>
+                    <option value="SG">SGP</option>
+                    <option value="ALL">All</option>
+                  </select>
+                </label>
+              </div>
               <form id="watchlist-form">
                 <div class="field-group">
                   <label for="symbol-input">Ticker</label>
                   <input id="symbol-input" name="symbol" placeholder="AAPL" maxlength="10" required />
                 </div>
                 <div class="field-group">
-                  <label for="label-input">Label</label>
+                  <label for="label-input">Company / Label</label>
                   <input id="label-input" name="label" placeholder="Apple" maxlength="40" />
+                </div>
+                <div class="field-group">
+                  <label for="watchlist-market-select">Market</label>
+                  <select id="watchlist-market-select" name="market">
+                    <option value="US" selected>US</option>
+                    <option value="SG">Singapore</option>
+                  </select>
                 </div>
                 <button class="button" type="submit">Add to watchlist</button>
               </form>
+              <div id="watchlist-search-results" class="watchlist-search-results" hidden></div>
               <p id="status-message" class="status-message">Loading watchlist…</p>
             </section>
             <section id="cards" class="card-grid" aria-live="polite"></section>
@@ -126,6 +149,7 @@
             <div class="overview-header">
               <div class="overview-metrics">
                 <p id="overview-total-value" class="overview-total-value">Total watchlist value: --</p>
+                <p id="benchmark-region-note" class="overview-note">Benchmark View follows the selected watchlist region.</p>
                 <p id="overview-summary" class="overview-summary">Waiting for live data…</p>
               </div>
             </div>
@@ -241,6 +265,6 @@
       </section>
     </div>
 
-    <script src="/static/app.js?v=20260422w" defer></script>
+    <script src="/static/app.js?v=20260428a" defer></script>
   </body>
 </html>

@@ -1,10 +1,14 @@
 const cardsRoot = document.querySelector("#cards");
 const statusMessage = document.querySelector("#status-message");
 const watchlistForm = document.querySelector("#watchlist-form");
+const symbolInput = document.querySelector("#symbol-input");
+const labelInput = document.querySelector("#label-input");
 const refreshButton = document.querySelector("#refresh-button");
 const refreshModeSelect = document.querySelector("#refresh-mode-select");
 const refreshIntervalGroup = document.querySelector("#refresh-interval-group");
 const refreshIntervalInput = document.querySelector("#refresh-interval-input");
+const marketSelect = document.querySelector("#market-select");
+const watchlistMarketSelect = document.querySelector("#watchlist-market-select");
 const themeSelect = document.querySelector("#theme-select");
 const currencySelect = document.querySelector("#currency-select");
 const changeModeSelect = document.querySelector("#change-mode-select");
@@ -14,6 +18,7 @@ const overviewChart = document.querySelector("#overview-chart");
 const overviewLegend = document.querySelector("#overview-legend");
 const overviewSummary = document.querySelector("#overview-summary");
 const overviewTotalValue = document.querySelector("#overview-total-value");
+const benchmarkRegionNote = document.querySelector("#benchmark-region-note");
 const benchmarkControls = document.querySelector("#benchmark-controls");
 const newsGroupsRoot = document.querySelector("#news-groups");
 const marketSummary = document.querySelector("#market-summary");
@@ -27,12 +32,15 @@ const positionModalClear = document.querySelector("#position-modal-clear");
 const positionModalInput = document.querySelector("#position-modal-input");
 const positionModalSymbol = document.querySelector("#position-modal-symbol");
 const collapsiblePanels = document.querySelectorAll(".collapsible-panel");
+const watchlistSearchResults = document.querySelector("#watchlist-search-results");
 
 let watchlist = [];
 let usdToSgdRate = 1;
 let autoRefreshTimer = null;
 let selectedMarketSector = null;
-let activePositionSymbol = null;
+let activePositionTarget = null;
+let watchlistSearchTimer = null;
+let lastWatchlistSearchQuery = "";
 const MARKET_DRILLDOWN_SYMBOLS = new Set([
   "SPY",
   "QQQ",
@@ -51,12 +59,20 @@ const MARKET_DRILLDOWN_SYMBOLS = new Set([
   "XLC",
 ]);
 const WATCHLIST_AVERAGE_COLOR = "#1f6f5f";
-const BENCHMARKS = [
-  { key: "sp500", symbol: "SPY", label: "S&P 500", shortLabel: "S&P 500 (SPY)", color: "#c4672f", enabled: true },
-  { key: "nasdaq", symbol: "QQQ", label: "Nasdaq", shortLabel: "Nasdaq (QQQ)", color: "#2d5b9a", enabled: true },
-  { key: "dow", symbol: "DIA", label: "Dow", shortLabel: "Dow (DIA)", color: "#8a3ffc", enabled: true },
-  { key: "vix", symbol: "^VIX", label: "VIX", shortLabel: "VIX (^VIX)", color: "#bc4749", enabled: false },
-];
+const BENCHMARK_SETS = {
+  US: [
+    { key: "sp500", symbol: "SPY", label: "S&P 500", shortLabel: "S&P 500 (SPY)", color: "#c4672f", enabled: true },
+    { key: "nasdaq", symbol: "QQQ", label: "Nasdaq", shortLabel: "Nasdaq (QQQ)", color: "#2d5b9a", enabled: true },
+    { key: "dow", symbol: "DIA", label: "Dow", shortLabel: "Dow (DIA)", color: "#8a3ffc", enabled: true },
+    { key: "vix", symbol: "^VIX", label: "VIX", shortLabel: "VIX (^VIX)", color: "#bc4749", enabled: false },
+  ],
+  SG: [
+    { key: "sti", symbol: "^STI", label: "STI Index", shortLabel: "STI Index (^STI)", color: "#c4672f", enabled: true },
+    { key: "spdrsti", symbol: "ES3.SI", label: "SPDR STI ETF", shortLabel: "SPDR STI ETF (ES3.SI)", color: "#2d5b9a", enabled: true },
+    { key: "amovasti", symbol: "G3B.SI", label: "Singapore STI ETF", shortLabel: "Singapore STI ETF (G3B.SI)", color: "#8a3ffc", enabled: true },
+    { key: "mscisg", symbol: "EWS", label: "MSCI Singapore", shortLabel: "MSCI Singapore (EWS)", color: "#bc4749", enabled: false },
+  ],
+};
 const RANGE_LABELS = {
   "1mo": "1 month",
   "3mo": "3 months",
@@ -70,15 +86,42 @@ const COLLAPSE_STORAGE_PREFIX = "stock-dashboard-collapse-";
 const REFRESH_MODE_STORAGE_KEY = "stock-dashboard-refresh-mode";
 const REFRESH_INTERVAL_STORAGE_KEY = "stock-dashboard-refresh-interval";
 const MARKET_STOCK_COUNT_STORAGE_KEY = "stock-dashboard-market-stock-count";
+const ACTIVE_WATCHLIST_MARKET_STORAGE_KEY = "stock-dashboard-active-watchlist-market";
+const RANDOM_THEME_VARIANTS = [
+  { theme: "light", variant: "terracotta" },
+  { theme: "light", variant: "ocean" },
+  { theme: "light", variant: "sunrise" },
+  { theme: "light", variant: "sage" },
+  { theme: "light", variant: "lavender" },
+  { theme: "light", variant: "citrus" },
+  { theme: "dark", variant: "ember" },
+  { theme: "dark", variant: "forest" },
+  { theme: "dark", variant: "midnight-blue" },
+  { theme: "dark", variant: "plum-night" },
+  { theme: "dark", variant: "graphite" },
+  { theme: "dark", variant: "moss-night" },
+];
 
 function resolveAutoTheme() {
   const currentHour = new Date().getHours();
   return currentHour >= 19 || currentHour < 7 ? "dark" : "light";
 }
 
+function randomThemeVariant() {
+  return RANDOM_THEME_VARIANTS[Math.floor(Math.random() * RANDOM_THEME_VARIANTS.length)];
+}
+
 function applyTheme(themeMode) {
+  if (themeMode === "random") {
+    const variant = randomThemeVariant();
+    document.body.dataset.theme = variant.theme;
+    document.body.dataset.themeVariant = variant.variant;
+    return;
+  }
+
   const resolvedTheme = themeMode === "auto" ? resolveAutoTheme() : themeMode;
   document.body.dataset.theme = resolvedTheme;
+  delete document.body.dataset.themeVariant;
 }
 
 function initializeTheme() {
@@ -87,6 +130,176 @@ function initializeTheme() {
     themeSelect.value = savedTheme;
   }
   applyTheme(savedTheme);
+}
+
+function normalizeMarket(value) {
+  const normalized = String(value || "US").trim().toUpperCase();
+  if (normalized === "ALL") {
+    return "ALL";
+  }
+  return normalized === "SG" || normalized === "SGP" ? "SG" : "US";
+}
+
+function currentMarket() {
+  return normalizeMarket(marketSelect?.value || "US");
+}
+
+function currentMarketLabel() {
+  if (currentMarket() === "ALL") {
+    return "all";
+  }
+  return currentMarket() === "SG" ? "Singapore" : "US";
+}
+
+function currentMarketDescriptor() {
+  if (currentMarket() === "ALL") {
+    return "all markets";
+  }
+  return currentMarket() === "SG" ? "Singapore" : "US";
+}
+
+function updateBenchmarkRegionNote() {
+  if (!benchmarkRegionNote) {
+    return;
+  }
+  if (currentMarket() === "ALL") {
+    benchmarkRegionNote.textContent = "Benchmark View is paused in All mode. Switch to US or SGP for regional comparison.";
+    return;
+  }
+  benchmarkRegionNote.textContent = `Benchmark View is following your ${currentMarketDescriptor()} watchlist region.`;
+}
+
+function filteredWatchlist() {
+  if (currentMarket() === "ALL") {
+    return [...watchlist].sort((left, right) => {
+      const leftMarket = normalizeMarket(left.market);
+      const rightMarket = normalizeMarket(right.market);
+      if (leftMarket !== rightMarket) {
+        return leftMarket === "US" ? -1 : 1;
+      }
+      return left.symbol.localeCompare(right.symbol);
+    });
+  }
+  return watchlist.filter((entry) => normalizeMarket(entry.market) === currentMarket());
+}
+
+function initializeMarketSelection() {
+  const savedMarket = normalizeMarket(localStorage.getItem(ACTIVE_WATCHLIST_MARKET_STORAGE_KEY) || "US");
+  if (marketSelect) {
+    marketSelect.value = savedMarket;
+  }
+  if (watchlistMarketSelect) {
+    watchlistMarketSelect.value = savedMarket === "ALL" ? "US" : savedMarket;
+  }
+}
+
+function clearWatchlistSearchResults() {
+  if (!watchlistSearchResults) {
+    return;
+  }
+  watchlistSearchResults.hidden = true;
+  watchlistSearchResults.replaceChildren();
+}
+
+function renderWatchlistSearchResults(items, query) {
+  if (!watchlistSearchResults) {
+    return;
+  }
+
+  watchlistSearchResults.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "watchlist-search-empty";
+    empty.textContent = `No matches found for "${query}".`;
+    watchlistSearchResults.appendChild(empty);
+    watchlistSearchResults.hidden = false;
+    return;
+  }
+
+  items.forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "watchlist-search-item";
+
+    const topline = document.createElement("div");
+    topline.className = "watchlist-search-topline";
+
+    const symbol = document.createElement("span");
+    symbol.className = "watchlist-search-symbol";
+    symbol.textContent = item.symbol;
+
+    const market = document.createElement("span");
+    market.className = "watchlist-search-market";
+    market.textContent = item.market === "SG" ? "Singapore" : "US";
+
+    const name = document.createElement("p");
+    name.className = "watchlist-search-name";
+    name.textContent = item.label || item.symbol;
+
+    const meta = document.createElement("p");
+    meta.className = "watchlist-search-meta";
+    meta.textContent = [item.exchange, item.type].filter(Boolean).join(" • ");
+
+    topline.append(symbol, market);
+    button.append(topline, name);
+    if (meta.textContent) {
+      button.appendChild(meta);
+    }
+
+    button.addEventListener("click", () => {
+      if (symbolInput) {
+        symbolInput.value = item.symbol;
+      }
+      if (labelInput) {
+        labelInput.value = item.label || item.symbol;
+      }
+      if (watchlistMarketSelect) {
+        watchlistMarketSelect.value = normalizeMarket(item.market);
+      }
+      clearWatchlistSearchResults();
+    });
+
+    watchlistSearchResults.appendChild(button);
+  });
+
+  watchlistSearchResults.hidden = false;
+}
+
+async function searchWatchlistOptions(query) {
+  const cleanedQuery = String(query || "").trim();
+  lastWatchlistSearchQuery = cleanedQuery;
+  if (cleanedQuery.length < 2) {
+    clearWatchlistSearchResults();
+    return;
+  }
+
+  const response = await fetch(
+    `/api/search?q=${encodeURIComponent(cleanedQuery)}&market=${encodeURIComponent(
+      normalizeMarket(watchlistMarketSelect?.value || currentMarket())
+    )}`
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Unable to search tickers");
+  }
+
+  if (lastWatchlistSearchQuery !== cleanedQuery) {
+    return;
+  }
+
+  renderWatchlistSearchResults(payload.items || [], cleanedQuery);
+}
+
+function scheduleWatchlistSearch(query) {
+  if (watchlistSearchTimer) {
+    window.clearTimeout(watchlistSearchTimer);
+  }
+  watchlistSearchTimer = window.setTimeout(() => {
+    searchWatchlistOptions(query).catch((error) => {
+      console.error(error);
+      clearWatchlistSearchResults();
+    });
+  }, 220);
 }
 
 function selectedMarketStockCount() {
@@ -176,8 +389,15 @@ function initializeCollapsibles() {
   });
 }
 
+function marketBenchmarks() {
+  if (currentMarket() === "ALL") {
+    return [];
+  }
+  return BENCHMARK_SETS[currentMarket()] || BENCHMARK_SETS.US;
+}
+
 function activeBenchmarks() {
-  return BENCHMARKS.filter((benchmark) => benchmark.enabled);
+  return marketBenchmarks().filter((benchmark) => benchmark.enabled);
 }
 
 function renderBenchmarkControls() {
@@ -186,7 +406,15 @@ function renderBenchmarkControls() {
   }
 
   benchmarkControls.replaceChildren();
-  BENCHMARKS.forEach((benchmark) => {
+  updateBenchmarkRegionNote();
+  if (!marketBenchmarks().length) {
+    const note = document.createElement("p");
+    note.className = "news-empty";
+    note.textContent = "Select US or SGP in Market view to compare against market benchmarks.";
+    benchmarkControls.appendChild(note);
+    return;
+  }
+  marketBenchmarks().forEach((benchmark) => {
     const toggle = document.createElement("label");
     toggle.className = "benchmark-toggle";
 
@@ -243,11 +471,24 @@ function displayCurrency() {
   return currencySelect?.value || "USD";
 }
 
-function convertFromUsd(amount) {
-  if (displayCurrency() === "SGD") {
-    return amount * usdToSgdRate;
+function convertCurrency(amount, fromCurrency, toCurrency = displayCurrency()) {
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount)) {
+    return numericAmount;
   }
-  return amount;
+
+  const source = String(fromCurrency || "USD").toUpperCase();
+  const target = String(toCurrency || "USD").toUpperCase();
+  if (source === target) {
+    return numericAmount;
+  }
+  if (source === "USD" && target === "SGD") {
+    return numericAmount * usdToSgdRate;
+  }
+  if (source === "SGD" && target === "USD") {
+    return numericAmount / usdToSgdRate;
+  }
+  return numericAmount;
 }
 
 function updateStatus(message, isError = false) {
@@ -277,7 +518,7 @@ function formatPositionValue(position, price, currency) {
   }
 
   return `Position: ${formatPositionInput(numericPosition)} • Value: ${currencyFormatter(displayCurrency()).format(
-    convertFromUsd(numericPosition * numericPrice)
+    convertCurrency(numericPosition * numericPrice, currency || "USD")
   )}`;
 }
 
@@ -286,8 +527,8 @@ function openPositionModal(stock) {
     return;
   }
 
-  activePositionSymbol = stock.symbol;
-  positionModalSymbol.textContent = `${stock.symbol}${stock.label && stock.label !== stock.symbol ? ` • ${stock.label}` : ""}`;
+  activePositionTarget = { symbol: stock.symbol, market: normalizeMarket(stock.market) };
+  positionModalSymbol.textContent = `${stock.symbol}${stock.label && stock.label !== stock.symbol ? ` • ${stock.label}` : ""} • ${normalizeMarket(stock.market)}`;
   positionModalInput.value = formatPositionInput(stock.position);
   positionModal.hidden = false;
   document.body.style.overflow = "hidden";
@@ -302,10 +543,10 @@ function closePositionModal() {
 
   positionModal.hidden = true;
   document.body.style.overflow = "";
-  activePositionSymbol = null;
+  activePositionTarget = null;
 }
 
-async function savePositionForSymbol(symbol, rawValue) {
+async function savePositionForSymbol(symbol, market, rawValue) {
   const nextPosition = rawValue === "" ? null : Number(rawValue);
 
   if (rawValue !== "" && Number.isNaN(nextPosition)) {
@@ -313,7 +554,7 @@ async function savePositionForSymbol(symbol, rawValue) {
   }
 
   watchlist = watchlist.map((entry) =>
-    entry.symbol === symbol
+    entry.symbol === symbol && normalizeMarket(entry.market) === normalizeMarket(market)
       ? {
           ...entry,
           ...(nextPosition === null ? { position: undefined } : { position: nextPosition }),
@@ -329,7 +570,7 @@ function currentRangeLabel() {
   return RANGE_LABELS[rangeSelect.value] || rangeSelect.value;
 }
 
-function formatChange(value, pct) {
+function formatChange(value, pct, currency) {
   if (value === null || pct === null) {
     return "Change from yesterday: --";
   }
@@ -337,7 +578,7 @@ function formatChange(value, pct) {
   if (changeModeSelect && changeModeSelect.value === "value") {
     const sign = value > 0 ? "+" : "";
     return `Change from yesterday: ${sign}${currencyFormatter(displayCurrency()).format(
-      Math.abs(convertFromUsd(value))
+      Math.abs(convertCurrency(value, currency || "USD"))
     )}`;
   }
 
@@ -345,18 +586,18 @@ function formatChange(value, pct) {
   return `Change from yesterday: ${sign}${pct.toFixed(2)}%`;
 }
 
-function formatPremarket(change, pct, price, marketState) {
+function formatPremarket(change, pct, price, marketState, currency) {
   if (change === null || change === undefined || pct === null || pct === undefined) {
     return "Premarket: --";
   }
 
   if (changeModeSelect && changeModeSelect.value === "value") {
     const sign = change > 0 ? "+" : "";
-    const valueText = `${sign}${currencyFormatter(displayCurrency()).format(Math.abs(convertFromUsd(change)))}`;
+    const valueText = `${sign}${currencyFormatter(displayCurrency()).format(Math.abs(convertCurrency(change, currency || "USD")))}`;
     const priceText =
       price === null || price === undefined
         ? ""
-        : ` at ${currencyFormatter(displayCurrency()).format(convertFromUsd(Number(price)))}`;
+        : ` at ${currencyFormatter(displayCurrency()).format(convertCurrency(Number(price), currency || "USD"))}`;
     return `Premarket: ${valueText}${priceText}`;
   }
 
@@ -426,10 +667,10 @@ function renderNews(groups) {
 
   newsGroupsRoot.replaceChildren();
 
-  if (!watchlist.length) {
+  if (!filteredWatchlist().length) {
     const emptyState = document.createElement("p");
     emptyState.className = "news-empty";
-    emptyState.textContent = "Add a ticker to start seeing recent watchlist headlines.";
+    emptyState.textContent = `Add a ${currentMarketDescriptor()} ticker to start seeing recent watchlist headlines.`;
     newsGroupsRoot.appendChild(emptyState);
     return;
   }
@@ -534,12 +775,12 @@ async function loadNews() {
     return;
   }
 
-  if (!watchlist.length) {
+  if (!filteredWatchlist().length) {
     renderNews([]);
     return;
   }
 
-  const response = await fetch("/api/news");
+  const response = await fetch(`/api/news?market=${encodeURIComponent(currentMarket())}`);
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.error || "Unable to load watchlist news");
@@ -854,10 +1095,13 @@ function renderOverview(stocks, benchmarks) {
   const availableStocks = stocks.filter((stock) => !stock.error && Array.isArray(stock.points) && stock.points.length);
   const totalValue = availableStocks.reduce((sum, stock) => {
     const position = Number(stock.position);
-    return Number.isNaN(position) ? sum : sum + position * Number(stock.price || 0);
+    if (Number.isNaN(position)) {
+      return sum;
+    }
+    return sum + convertCurrency(position * Number(stock.price || 0), stock.currency || "USD", "USD");
   }, 0);
   overviewTotalValue.textContent = `Total watchlist value: ${currencyFormatter(displayCurrency()).format(
-    convertFromUsd(totalValue)
+    convertCurrency(totalValue, "USD")
   )}`;
   const averageSeries = buildAverageSeries(availableStocks);
   const benchmarkSeries = (benchmarks || [])
@@ -913,7 +1157,7 @@ function renderOverview(stocks, benchmarks) {
   ]);
 
   if (!benchmarkSeries.length) {
-    overviewSummary.textContent = `Showing your watchlist trend over ${currentRangeLabel()}. Turn on a benchmark to compare it against the market.`;
+    overviewSummary.textContent = `Showing your ${currentMarketDescriptor()} watchlist trend over ${currentRangeLabel()}. Turn on a benchmark to compare it against the market.`;
     return;
   }
 
@@ -926,7 +1170,7 @@ function renderOverview(stocks, benchmarks) {
     }
     return `${Math.abs(spread).toFixed(2)} points ${spread > 0 ? "ahead of" : "behind"} ${series.label}`;
   });
-  overviewSummary.textContent = `Over ${currentRangeLabel()}, your watchlist is ${comparisons.join(" • ")}.`;
+  overviewSummary.textContent = `Over ${currentRangeLabel()}, your ${currentMarketDescriptor()} watchlist is ${comparisons.join(" • ")}.`;
 }
 
 async function getWatchlist() {
@@ -936,7 +1180,10 @@ async function getWatchlist() {
   }
 
   const payload = await response.json();
-  watchlist = payload.symbols || [];
+  watchlist = (payload.symbols || []).map((entry) => ({
+    ...entry,
+    market: normalizeMarket(entry.market),
+  }));
   return watchlist;
 }
 
@@ -954,17 +1201,18 @@ async function saveWatchlist() {
 
 async function loadCharts() {
   cardsRoot.innerHTML = "";
-  if (!watchlist.length) {
+  const activeWatchlist = filteredWatchlist();
+  if (!activeWatchlist.length) {
     overviewTotalValue.textContent = "Total watchlist value: --";
     renderOverview([], []);
-    updateStatus("Your watchlist is empty. Add a ticker to get started.");
+    updateStatus(`Your ${currentMarketDescriptor()} watchlist is empty. Add a ticker to get started.`);
     return;
   }
 
-  updateStatus(`Refreshing ${watchlist.length} stock${watchlist.length === 1 ? "" : "s"}...`);
+  updateStatus(`Refreshing ${activeWatchlist.length} ${currentMarketDescriptor()} stock${activeWatchlist.length === 1 ? "" : "s"}...`);
 
   const range = rangeSelect.value;
-  const tasks = watchlist.map(async (entry) => {
+  const tasks = activeWatchlist.map(async (entry) => {
     const response = await fetch(`/api/chart?symbol=${encodeURIComponent(entry.symbol)}&range=${range}`);
     const payload = await response.json();
     if (!response.ok) {
@@ -990,7 +1238,7 @@ async function loadCharts() {
   renderOverview(results, benchmarks);
   results.forEach(renderCard);
   updateStatus(
-    `Showing ${results.length} chart${results.length === 1 ? "" : "s"} for ${currentRangeLabel()}.`
+    `Showing ${results.length} ${currentMarketDescriptor()} chart${results.length === 1 ? "" : "s"} for ${currentRangeLabel()}.`
   );
 }
 
@@ -1008,7 +1256,8 @@ function renderCard(stock) {
     stock.preMarketChange,
     stock.preMarketChangePct,
     stock.preMarketPrice,
-    stock.marketState
+    stock.marketState,
+    stock.currency
   );
   liveStatusNode.textContent = formatLiveStatus(stock);
   liveBadgeNode.textContent = liveBadgeLabel(stock);
@@ -1016,7 +1265,9 @@ function renderCard(stock) {
 
   const removeButton = node.querySelector(".remove-button");
   removeButton.addEventListener("click", async () => {
-    watchlist = watchlist.filter((entry) => entry.symbol !== stock.symbol);
+    watchlist = watchlist.filter(
+      (entry) => !(entry.symbol === stock.symbol && normalizeMarket(entry.market) === normalizeMarket(stock.market))
+    );
     await saveWatchlist();
     await loadNews();
     await loadCharts();
@@ -1043,13 +1294,16 @@ function renderCard(stock) {
   const positiveTrend = (stock.dayChange || 0) >= 0;
   const chart = buildChart(stock.points, positiveTrend);
 
-  node.querySelector(".stock-price").textContent = displayFormatter.format(convertFromUsd(stock.price));
+  node.querySelector(".stock-price").textContent = displayFormatter.format(
+    convertCurrency(stock.price, stock.currency || "USD")
+  );
   const changeNode = node.querySelector(".stock-change");
-  changeNode.textContent = formatChange(stock.dayChange, stock.dayChangePct);
+  changeNode.textContent = formatChange(stock.dayChange, stock.dayChangePct, stock.currency);
   changeNode.classList.add(positiveTrend ? "positive" : "negative");
   node.querySelector(".stock-meta").textContent = [
     friendlyExchangeName(stock.exchange),
-    displayCurrency(),
+    stock.currency || displayCurrency(),
+    normalizeMarket(stock.market),
   ]
     .filter(Boolean)
     .join(" • ");
@@ -1058,7 +1312,8 @@ function renderCard(stock) {
     stock.preMarketChange,
     stock.preMarketChangePct,
     stock.preMarketPrice,
-    stock.marketState
+    stock.marketState,
+    stock.currency
   );
   liveStatusNode.textContent = formatLiveStatus(stock);
 
@@ -1082,22 +1337,55 @@ watchlistForm.addEventListener("submit", async (event) => {
   const formData = new FormData(watchlistForm);
   const symbol = String(formData.get("symbol") || "").trim().toUpperCase();
   const label = String(formData.get("label") || "").trim() || symbol;
+  const market = normalizeMarket(String(formData.get("market") || currentMarket()));
 
   if (!symbol) {
     updateStatus("Please enter a ticker symbol.", true);
     return;
   }
 
-  if (watchlist.some((entry) => entry.symbol === symbol)) {
-    updateStatus(`${symbol} is already on your watchlist.`, true);
+  if (watchlist.some((entry) => entry.symbol === symbol && normalizeMarket(entry.market) === market)) {
+    updateStatus(`${symbol} is already on your ${market === "SG" ? "Singapore" : "US"} watchlist.`, true);
     return;
   }
 
-  watchlist = [...watchlist, { symbol, label }];
+  watchlist = [...watchlist, { symbol, label, market }];
   await saveWatchlist();
   watchlistForm.reset();
+  if (watchlistMarketSelect) {
+    watchlistMarketSelect.value = currentMarket();
+  }
+  clearWatchlistSearchResults();
   await loadNews();
   await loadCharts();
+});
+
+symbolInput?.addEventListener("input", () => {
+  scheduleWatchlistSearch(symbolInput.value);
+});
+
+labelInput?.addEventListener("input", () => {
+  scheduleWatchlistSearch(labelInput.value);
+});
+
+symbolInput?.addEventListener("blur", () => {
+  window.setTimeout(clearWatchlistSearchResults, 150);
+});
+
+labelInput?.addEventListener("blur", () => {
+  window.setTimeout(clearWatchlistSearchResults, 150);
+});
+
+symbolInput?.addEventListener("focus", () => {
+  if (symbolInput.value.trim().length >= 2) {
+    scheduleWatchlistSearch(symbolInput.value);
+  }
+});
+
+labelInput?.addEventListener("focus", () => {
+  if (labelInput.value.trim().length >= 2) {
+    scheduleWatchlistSearch(labelInput.value);
+  }
 });
 
 refreshButton.addEventListener("click", () => refreshDashboard().catch(handleError));
@@ -1127,13 +1415,13 @@ positionModal?.addEventListener("click", (event) => {
   }
 });
 positionModalClear?.addEventListener("click", async () => {
-  if (!activePositionSymbol) {
+  if (!activePositionTarget) {
     return;
   }
 
   try {
-    await savePositionForSymbol(activePositionSymbol, "");
-    updateStatus(`Cleared position for ${activePositionSymbol}.`);
+    await savePositionForSymbol(activePositionTarget.symbol, activePositionTarget.market, "");
+    updateStatus(`Cleared position for ${activePositionTarget.symbol}.`);
     closePositionModal();
     await loadCharts();
   } catch (error) {
@@ -1141,13 +1429,13 @@ positionModalClear?.addEventListener("click", async () => {
   }
 });
 positionModalSave?.addEventListener("click", async () => {
-  if (!activePositionSymbol || !positionModalInput) {
+  if (!activePositionTarget || !positionModalInput) {
     return;
   }
 
   try {
-    await savePositionForSymbol(activePositionSymbol, positionModalInput.value.trim());
-    updateStatus(`Saved position for ${activePositionSymbol}.`);
+    await savePositionForSymbol(activePositionTarget.symbol, activePositionTarget.market, positionModalInput.value.trim());
+    updateStatus(`Saved position for ${activePositionTarget.symbol}.`);
     closePositionModal();
     await loadCharts();
   } catch (error) {
@@ -1174,6 +1462,16 @@ themeSelect.addEventListener("change", () => {
   localStorage.setItem(THEME_STORAGE_KEY, selectedTheme);
   applyTheme(selectedTheme);
 });
+marketSelect?.addEventListener("change", () => {
+  const market = currentMarket();
+  localStorage.setItem(ACTIVE_WATCHLIST_MARKET_STORAGE_KEY, market);
+  if (watchlistMarketSelect) {
+    watchlistMarketSelect.value = market;
+  }
+  renderBenchmarkControls();
+  closePositionModal();
+  refreshDashboard().catch(handleError);
+});
 currencySelect.addEventListener("change", () => loadCharts().catch(handleError));
 changeModeSelect.addEventListener("change", () => loadCharts().catch(handleError));
 rangeSelect.addEventListener("change", () => loadCharts().catch(handleError));
@@ -1186,6 +1484,7 @@ function handleError(error) {
 async function init() {
   try {
     closePositionModal();
+    initializeMarketSelection();
     initializeTheme();
     initializeRefreshControls();
     initializeMarketControls();

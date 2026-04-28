@@ -3,35 +3,67 @@
     {
       "symbol": "AAPL",
       "label": "AAPL",
+      "market": "US",
       "position": 0.0
     },
     {
       "symbol": "TSLA",
       "label": "TSLA",
+      "market": "US",
       "position": 0.0
     },
     {
       "symbol": "AMZN",
       "label": "AMZN",
+      "market": "US",
       "position": 0.0
     },
     {
       "symbol": "AMD",
       "label": "AMD",
+      "market": "US",
       "position": 0.0
     },
     {
       "symbol": "GOOG",
       "label": "GOOG",
+      "market": "US",
       "position": 0.0
     },
     {
       "symbol": "NVDA",
-      "label": "NVDA"
+      "label": "NVDA",
+      "market": "US"
     },
     {
-      "symbol": "INTL",
-      "label": "INTL"
+      "symbol": "META",
+      "label": "Meta Platforms, Inc.",
+      "market": "US"
+    },
+    {
+      "symbol": "D05.SI",
+      "label": "DBS",
+      "market": "SG"
+    },
+    {
+      "symbol": "K71U.SI",
+      "label": "Keppel Reit",
+      "market": "SG"
+    },
+    {
+      "symbol": "G92.SI",
+      "label": "China Aviation",
+      "market": "SG"
+    },
+    {
+      "symbol": "O39.SI",
+      "label": "OCBC Bank",
+      "market": "SG"
+    },
+    {
+      "symbol": "HMN.SI",
+      "label": "CapLand Ascott T",
+      "market": "SG"
     }
   ]
 }

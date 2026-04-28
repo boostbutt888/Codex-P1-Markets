@@ -293,13 +293,25 @@ MARKET_SECTOR_STOCKS = {
 MARKET_DRILLDOWN_STOCKS = {**MARKET_BROAD_STOCKS, **MARKET_SECTOR_STOCKS}
 
 
+def normalize_watchlist_market(value: str | None) -> str:
+    normalized = str(value or "US").strip().upper()
+    return "SG" if normalized in {"SG", "SINGAPORE"} else "US"
+
+
+def normalize_watchlist_view(value: str | None) -> str:
+    normalized = str(value or "US").strip().upper()
+    if normalized in {"ALL", "*"}:
+        return "ALL"
+    return "SG" if normalized in {"SG", "SGP", "SINGAPORE"} else "US"
+
+
 def load_watchlist() -> dict:
     if not WATCHLIST_FILE.exists():
         default = {
             "symbols": [
-                {"symbol": "AAPL", "label": "Apple"},
-                {"symbol": "MSFT", "label": "Microsoft"},
-                {"symbol": "NVDA", "label": "NVIDIA"},
+                {"symbol": "AAPL", "label": "Apple", "market": "US"},
+                {"symbol": "MSFT", "label": "Microsoft", "market": "US"},
+                {"symbol": "NVDA", "label": "NVIDIA", "market": "US"},
             ]
         }
         save_watchlist(default)
@@ -307,8 +319,26 @@ def load_watchlist() -> dict:
 
     with WATCHLIST_FILE.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
-    data.setdefault("symbols", [])
-    return data
+
+    clean_symbols = []
+    for item in data.get("symbols", []):
+        symbol = str(item.get("symbol", "")).strip().upper()
+        label = str(item.get("label", symbol)).strip() or symbol
+        if not symbol:
+            continue
+        clean_item = {
+            "symbol": symbol,
+            "label": label,
+            "market": normalize_watchlist_market(item.get("market")),
+        }
+        if item.get("position") not in (None, ""):
+            try:
+                clean_item["position"] = float(item.get("position"))
+            except (TypeError, ValueError):
+                pass
+        clean_symbols.append(clean_item)
+
+    return {"symbols": clean_symbols}
 
 
 def save_watchlist(payload: dict) -> None:
@@ -316,6 +346,7 @@ def save_watchlist(payload: dict) -> None:
     for item in payload.get("symbols", []):
         symbol = str(item.get("symbol", "")).strip().upper()
         label = str(item.get("label", symbol)).strip() or symbol
+        market = normalize_watchlist_market(item.get("market"))
         position_value = item.get("position")
         position = None
         if position_value not in (None, ""):
@@ -324,7 +355,7 @@ def save_watchlist(payload: dict) -> None:
             except (TypeError, ValueError):
                 position = None
         if symbol:
-            clean_item = {"symbol": symbol, "label": label}
+            clean_item = {"symbol": symbol, "label": label, "market": market}
             if position is not None:
                 clean_item["position"] = position
             clean_symbols.append(clean_item)
@@ -366,6 +397,19 @@ def yahoo_chart_url(symbol: str, range_value: str = "3mo") -> str:
 def yahoo_quote_url(symbol: str) -> str:
     query = urllib.parse.urlencode({"symbols": symbol})
     return f"https://query1.finance.yahoo.com/v7/finance/quote?{query}"
+
+
+def yahoo_search_url(query_text: str) -> str:
+    query = urllib.parse.urlencode(
+        {
+            "q": query_text,
+            "quotesCount": 10,
+            "newsCount": 0,
+            "listsCount": 0,
+            "enableFuzzyQuery": "true",
+        }
+    )
+    return f"https://query1.finance.yahoo.com/v1/finance/search?{query}"
 
 
 def google_news_rss_url(symbol: str, label: str) -> str:
@@ -723,8 +767,15 @@ def fetch_news_for_entry(entry: dict) -> dict:
     }
 
 
-def fetch_watchlist_news() -> dict:
+def fetch_watchlist_news(market: str | None = None) -> dict:
+    selected_market = normalize_watchlist_view(market)
     watchlist = load_watchlist().get("symbols", [])
+    if selected_market != "ALL":
+        watchlist = [
+            entry
+            for entry in watchlist
+            if normalize_watchlist_market(entry.get("market")) == selected_market
+        ]
     groups = []
     for entry in watchlist:
         symbol = str(entry.get("symbol", "")).strip().upper()
@@ -742,7 +793,50 @@ def fetch_watchlist_news() -> dict:
                 }
             )
 
-    return {"groups": groups}
+    return {"market": selected_market, "groups": groups}
+
+
+def fetch_symbol_search(query_text: str, market: str | None = None) -> dict:
+    cleaned_query = str(query_text or "").strip()
+    selected_market = normalize_watchlist_market(market)
+    if len(cleaned_query) < 1:
+        return {"market": selected_market, "items": []}
+
+    payload = json.loads(fetch_text(yahoo_search_url(cleaned_query), "application/json"))
+    quotes = payload.get("quotes") or []
+    items = []
+    for quote in quotes:
+        symbol = str(quote.get("symbol", "")).strip().upper()
+        name = str(quote.get("shortname") or quote.get("longname") or symbol).strip() or symbol
+        exchange = str(quote.get("exchDisp") or quote.get("exchange") or "").strip()
+        type_disp = str(quote.get("quoteType") or "").strip()
+        if not symbol:
+            continue
+
+        inferred_market = "SG" if symbol.endswith(".SI") or "Singapore" in exchange else "US"
+        if inferred_market != selected_market:
+            continue
+
+        items.append(
+            {
+                "symbol": symbol,
+                "label": name,
+                "exchange": exchange,
+                "type": type_disp,
+                "market": inferred_market,
+            }
+        )
+
+    deduped = []
+    seen = set()
+    for item in items:
+        key = (item["symbol"], item["market"])
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+
+    return {"market": selected_market, "items": deduped[:8]}
 
 
 def reachable_urls(host: str, port: int) -> list[str]:
@@ -896,7 +990,19 @@ class StockDashboardHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/news":
-            self.respond_json(fetch_watchlist_news())
+            params = urllib.parse.parse_qs(parsed.query)
+            market = (params.get("market") or ["US"])[0]
+            self.respond_json(fetch_watchlist_news(market=market))
+            return
+
+        if parsed.path == "/api/search":
+            params = urllib.parse.parse_qs(parsed.query)
+            query_text = (params.get("q") or [""])[0]
+            market = (params.get("market") or ["US"])[0]
+            try:
+                self.respond_json(fetch_symbol_search(query_text, market=market))
+            except (ConnectionError, ValueError, json.JSONDecodeError) as exc:
+                self.respond_json({"error": str(exc)}, status=HTTPStatus.BAD_GATEWAY)
             return
 
         if parsed.path == "/api/market-overview":
