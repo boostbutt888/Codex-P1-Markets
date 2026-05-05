@@ -7,6 +7,7 @@ This repository is the shared stock market monitoring app intended to work
 across your computers while still running locally on each machine.
 
 For day-to-day usage instructions, see [MANUAL.md](/Users/thejackal/Documents/New project/MANUAL.md).
+For version-by-version release history, see [CHANGELOG.md](/Users/thejackal/Documents/New project/CHANGELOG.md).
 
 ## What it does
 
