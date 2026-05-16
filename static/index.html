@@ -4,13 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Stock Dashboard</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260428a" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260516a" />
   </head>
   <body>
     <div class="page-shell">
       <header class="hero">
         <div class="hero-primary">
-          <p class="eyebrow">Local-only watchlist</p>
+          <div class="hero-topline">
+            <p class="eyebrow">Local-only watchlist</p>
+            <span id="app-version" class="app-version" aria-label="App version"></span>
+          </div>
           <h1>Daily stock charts for the companies you care about.</h1>
           <p class="hero-copy">
             This dashboard runs on your devices, stores your watchlist locally, and
@@ -265,6 +268,6 @@
       </section>
     </div>
 
-    <script src="/static/app.js?v=20260428a" defer></script>
+    <script src="/static/app.js?v=20260516a" defer></script>
   </body>
 </html>

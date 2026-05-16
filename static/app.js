@@ -1,6 +1,7 @@
 const cardsRoot = document.querySelector("#cards");
 const statusMessage = document.querySelector("#status-message");
 const watchlistForm = document.querySelector("#watchlist-form");
+const appVersionNode = document.querySelector("#app-version");
 const symbolInput = document.querySelector("#symbol-input");
 const labelInput = document.querySelector("#label-input");
 const refreshButton = document.querySelector("#refresh-button");
@@ -789,6 +790,25 @@ async function loadNews() {
   renderNews(payload.groups || []);
 }
 
+async function loadVersion() {
+  if (!appVersionNode) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/version");
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || "Unable to load version");
+    }
+    appVersionNode.textContent = payload.display || "";
+    appVersionNode.title = payload.commit ? `Commit ${payload.commit}` : "";
+  } catch (error) {
+    console.warn("Unable to load app version.", error);
+    appVersionNode.textContent = "";
+  }
+}
+
 function renderMarketOverview(segments) {
   if (!marketGroupsRoot || !marketSummary) {
     return;
@@ -1484,6 +1504,7 @@ function handleError(error) {
 async function init() {
   try {
     closePositionModal();
+    await loadVersion();
     initializeMarketSelection();
     initializeTheme();
     initializeRefreshControls();

@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import os
+import re
 import socket
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -24,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 STATIC_DIR = ROOT / "static"
 WATCHLIST_FILE = ROOT / "watchlist.json"
+CHANGELOG_FILE = ROOT / "CHANGELOG.md"
 HOST = os.environ.get("STOCK_DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.environ.get("STOCK_DASHBOARD_PORT", "8000"))
 ACCESS_CODE = "1010"
@@ -291,6 +293,55 @@ MARKET_SECTOR_STOCKS = {
     ],
 }
 MARKET_DRILLDOWN_STOCKS = {**MARKET_BROAD_STOCKS, **MARKET_SECTOR_STOCKS}
+
+
+def base_release_version() -> str:
+    if not CHANGELOG_FILE.exists():
+        return "0.0.0"
+    try:
+        content = CHANGELOG_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return "0.0.0"
+    match = re.search(r"^## \[([^\]]+)\]", content, flags=re.MULTILINE)
+    if not match:
+        return "0.0.0"
+    return match.group(1).strip()
+
+
+def git_build_metadata() -> dict:
+    try:
+        commit_count = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        short_sha = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return {"build": "0", "commit": "unknown"}
+
+    return {
+        "build": commit_count or "0",
+        "commit": short_sha or "unknown",
+    }
+
+
+def current_version_payload() -> dict:
+    release = base_release_version()
+    metadata = git_build_metadata()
+    return {
+        "release": release,
+        "build": metadata["build"],
+        "commit": metadata["commit"],
+        "display": f"v{release}+{metadata['build']}",
+    }
 
 
 def normalize_watchlist_market(value: str | None) -> str:
@@ -987,6 +1038,10 @@ class StockDashboardHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/watchlist":
             self.respond_json(load_watchlist())
+            return
+
+        if parsed.path == "/api/version":
+            self.respond_json(current_version_payload())
             return
 
         if parsed.path == "/api/news":
