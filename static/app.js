@@ -3,6 +3,7 @@ const statusMessage = document.querySelector("#status-message");
 const watchlistForm = document.querySelector("#watchlist-form");
 const appVersionNode = document.querySelector("#app-version");
 const appVersionFooterNode = document.querySelector("#app-version-footer");
+const actionsRoot = document.querySelector("#watchlist-actions");
 const symbolInput = document.querySelector("#symbol-input");
 const labelInput = document.querySelector("#label-input");
 const refreshButton = document.querySelector("#refresh-button");
@@ -23,6 +24,10 @@ const overviewTotalValue = document.querySelector("#overview-total-value");
 const benchmarkRegionNote = document.querySelector("#benchmark-region-note");
 const benchmarkControls = document.querySelector("#benchmark-controls");
 const newsGroupsRoot = document.querySelector("#news-groups");
+const optionsStockSelect = document.querySelector("#options-stock-select");
+const optionsBiasSelect = document.querySelector("#options-bias-select");
+const optionsSummary = document.querySelector("#options-summary");
+const optionsIdeasRoot = document.querySelector("#options-ideas");
 const marketSummary = document.querySelector("#market-summary");
 const marketGroupsRoot = document.querySelector("#market-groups");
 const sectorDetailRoot = document.querySelector("#sector-detail");
@@ -43,6 +48,9 @@ let selectedMarketSector = null;
 let activePositionTarget = null;
 let watchlistSearchTimer = null;
 let lastWatchlistSearchQuery = "";
+let latestChartResults = [];
+let latestNewsGroups = [];
+let selectedOptionsSymbol = "";
 const MARKET_DRILLDOWN_SYMBOLS = new Set([
   "SPY",
   "QQQ",
@@ -158,6 +166,426 @@ function currentMarketDescriptor() {
     return "all markets";
   }
   return currentMarket() === "SG" ? "Singapore" : "US";
+}
+
+function averageClose(points, count) {
+  const sample = (points || []).slice(-count);
+  if (!sample.length) {
+    return null;
+  }
+  const total = sample.reduce((sum, point) => sum + Number(point.close || 0), 0);
+  return total / sample.length;
+}
+
+function stockNewsGroup(symbol) {
+  return latestNewsGroups.find((group) => group.symbol === symbol);
+}
+
+function stockNewsCount(symbol) {
+  const group = stockNewsGroup(symbol);
+  if (!group || !Array.isArray(group.items)) {
+    return 0;
+  }
+  return group.items.length;
+}
+
+function stockSignalSnapshot(stock) {
+  if (stock?.error || !Array.isArray(stock?.points) || !stock.points.length) {
+    return null;
+  }
+
+  const points = stock.points;
+  const latest = Number(stock.price ?? points.at(-1)?.close ?? 0);
+  const sma5 = averageClose(points, 5) ?? latest;
+  const sma20 = averageClose(points, 20) ?? averageClose(points, 10) ?? latest;
+  const periodHigh = Math.max(...points.map((point) => Number(point.close || 0)));
+  const periodLow = Math.min(...points.map((point) => Number(point.close || 0)));
+  const distanceFromHigh = periodHigh ? (periodHigh - latest) / periodHigh : 0;
+  const distanceFromLow = periodLow ? (latest - periodLow) / periodLow : 0;
+  const shortTermSlope = sma5 ? ((latest - sma5) / sma5) * 100 : 0;
+  const mediumTermSlope = sma20 ? ((latest - sma20) / sma20) * 100 : 0;
+  const dayChangePct = Number(stock.dayChangePct || 0);
+  const hasPosition = Number(stock.position) > 0;
+  const newsCount = stockNewsCount(stock.symbol);
+
+  return {
+    latest,
+    sma5,
+    sma20,
+    periodHigh,
+    periodLow,
+    distanceFromHigh,
+    distanceFromLow,
+    shortTermSlope,
+    mediumTermSlope,
+    dayChangePct,
+    hasPosition,
+    newsCount,
+    aboveTrend: latest >= sma20,
+    strongDay: dayChangePct >= 2,
+    weakDay: dayChangePct <= -2,
+    nearHigh: distanceFromHigh <= 0.03,
+    nearLow: distanceFromLow <= 0.06,
+  };
+}
+
+function actionToneClass(tone) {
+  return tone === "positive" ? "is-positive" : tone === "warning" ? "is-warning" : "is-neutral";
+}
+
+function actionIdeasForStock(stock) {
+  const snapshot = stockSignalSnapshot(stock);
+  if (!snapshot) {
+    return {
+      tone: "neutral",
+      tag: "Data check",
+      title: `Refresh ${stock.symbol} before acting`,
+      summary: "Price data is unavailable right now, so the dashboard cannot generate a reliable action prompt.",
+      checklist: [
+        "Refresh the dashboard and verify the ticker symbol is correct.",
+        "Check the latest news before making any trade decision.",
+      ],
+    };
+  }
+
+  if (snapshot.strongDay && snapshot.aboveTrend && snapshot.nearHigh) {
+    return {
+      tone: "positive",
+      tag: "Breakout watch",
+      title: `Review ${stock.symbol} for continuation strength`,
+      summary: `${stock.symbol} is trading near the top of its selected range and is holding above its medium trend.`,
+      checklist: [
+        "Check whether today's move is supported by news or earnings momentum.",
+        "If entering, prefer scaling in instead of chasing a single large order.",
+        "If you already hold it, review whether you want a trailing stop under the recent breakout area.",
+      ],
+    };
+  }
+
+  if (snapshot.weakDay && snapshot.hasPosition) {
+    return {
+      tone: "warning",
+      tag: "Risk check",
+      title: `Review risk on ${stock.symbol}`,
+      summary: `${stock.symbol} is under pressure versus its recent trend while you already have position exposure.`,
+      checklist: [
+        "Review your stop level or invalidation point before the next session.",
+        "Consider whether a hedge or a smaller position size makes more sense now.",
+        "Read the latest headlines to see whether the weakness is event-driven or broad market noise.",
+      ],
+    };
+  }
+
+  if (snapshot.aboveTrend && snapshot.dayChangePct < 0 && snapshot.mediumTermSlope > 0) {
+    return {
+      tone: "positive",
+      tag: "Pullback watch",
+      title: `Watch ${stock.symbol} for a cleaner entry`,
+      summary: `${stock.symbol} is still above trend but is pulling back from recent strength, which can be a better review point than chasing green candles.`,
+      checklist: [
+        "Look for support near the 20-period average or a prior breakout area.",
+        "Wait for the pullback to stabilize before adding new size.",
+        "Keep news flow in view in case the dip is driven by a fresh catalyst.",
+      ],
+    };
+  }
+
+  if (!snapshot.aboveTrend && snapshot.weakDay && !snapshot.hasPosition) {
+    return {
+      tone: "warning",
+      tag: "Wait",
+      title: `Avoid rushing into ${stock.symbol}`,
+      summary: `${stock.symbol} is below trend and still weakening, so patience is more useful than forcing an entry.`,
+      checklist: [
+        "Wait for a base, reclaim, or reversal signal before planning a trade.",
+        "Use the market view and benchmark panels to see if weakness is stock-specific or market-wide.",
+        "Review earnings timing or company news before putting it back on an entry watch.",
+      ],
+    };
+  }
+
+  if (snapshot.hasPosition && snapshot.dayChangePct > 1.5) {
+    return {
+      tone: "positive",
+      tag: "Manage winner",
+      title: `Plan how to manage gains in ${stock.symbol}`,
+      summary: `${stock.symbol} is working in your favor, so this is a good time to define profit-taking or hedge rules before emotion takes over.`,
+      checklist: [
+        "Decide whether to trim partial size into strength or keep holding with a tighter stop.",
+        "If the move is extended, consider whether an income or hedge options structure fits your plan.",
+        "Compare today's move against recent highs to see if it is approaching resistance.",
+      ],
+    };
+  }
+
+  return {
+    tone: "neutral",
+    tag: "Hold / wait",
+    title: `Keep ${stock.symbol} on review, not on impulse`,
+    summary: `${stock.symbol} is not giving a strong directional edge right now, so waiting for a cleaner trigger may be the better move.`,
+    checklist: [
+      "Watch for a break above resistance or a bounce from support before acting.",
+      "Use the latest headlines as a catalyst check rather than trading every small move.",
+      "If you hold a position, confirm your risk and target levels are still valid.",
+    ],
+  };
+}
+
+function renderWatchlistActions() {
+  if (!actionsRoot) {
+    return;
+  }
+
+  actionsRoot.replaceChildren();
+  const activeStocks = latestChartResults.length ? latestChartResults : filteredWatchlist();
+  if (!activeStocks.length) {
+    const empty = document.createElement("p");
+    empty.className = "decision-empty";
+    empty.textContent = `Add a ${currentMarketDescriptor()} ticker to generate watchlist actions.`;
+    actionsRoot.appendChild(empty);
+    return;
+  }
+
+  activeStocks.forEach((stock) => {
+    const action = actionIdeasForStock(stock);
+    const card = document.createElement("article");
+    card.className = `action-card ${actionToneClass(action.tone)}`;
+
+    const header = document.createElement("div");
+    header.className = "action-card-header";
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "action-card-copy";
+
+    const symbol = document.createElement("p");
+    symbol.className = "action-card-symbol";
+    symbol.textContent = stock.symbol;
+
+    const title = document.createElement("h3");
+    title.className = "action-card-title";
+    title.textContent = action.title;
+
+    const summary = document.createElement("p");
+    summary.className = "action-card-summary";
+    summary.textContent = action.summary;
+
+    const tag = document.createElement("span");
+    tag.className = "action-tag";
+    tag.textContent = action.tag;
+
+    const checklist = document.createElement("div");
+    checklist.className = "action-checklist";
+    action.checklist.forEach((item) => {
+      const line = document.createElement("p");
+      line.className = "action-check";
+      line.textContent = item;
+      checklist.appendChild(line);
+    });
+
+    const meta = document.createElement("p");
+    meta.className = "action-card-meta";
+    meta.textContent = [
+      stock.label && stock.label !== stock.symbol ? stock.label : "",
+      stockNewsCount(stock.symbol) ? `${stockNewsCount(stock.symbol)} recent headlines` : "No recent headlines cached",
+      normalizeMarket(stock.market),
+    ]
+      .filter(Boolean)
+      .join(" • ");
+
+    titleWrap.append(symbol, title, summary);
+    header.append(titleWrap, tag);
+    card.append(header, checklist, meta);
+    actionsRoot.appendChild(card);
+  });
+}
+
+function optionIdeasForStock(stock) {
+  const snapshot = stockSignalSnapshot(stock);
+  if (!snapshot) {
+    return [];
+  }
+
+  const ideas = [];
+  const trendLabel = snapshot.aboveTrend ? "above trend" : "below trend";
+  const dayLabel = snapshot.dayChangePct >= 0 ? `up ${snapshot.dayChangePct.toFixed(2)}% today` : `down ${Math.abs(snapshot.dayChangePct).toFixed(2)}% today`;
+
+  ideas.push({
+    bias: "bullish",
+    strategy: "Bull call spread",
+    fit: "Bullish",
+    note: `${stock.symbol} is ${trendLabel}. Use a defined-risk bullish structure when you want upside without paying for an open-ended long call.`,
+    setup: "Start with 30-60 DTE and consider buying near-the-money while selling a higher strike to reduce premium outlay.",
+    risk: "Max loss is the debit paid. Upside is capped at the short strike.",
+  });
+
+  ideas.push({
+    bias: "bullish",
+    strategy: "Cash-secured put",
+    fit: "Bullish / income",
+    note: `Useful when you would be willing to own ${stock.symbol} on weakness rather than chase it higher immediately.`,
+    setup: "Focus on a strike near a support zone or trend average so assignment would happen closer to your desired entry.",
+    risk: "You can still be assigned into a falling stock, so only use this if you are comfortable owning shares.",
+  });
+
+  if (snapshot.hasPosition) {
+    ideas.push({
+      bias: "income",
+      strategy: "Covered call",
+      fit: "Income",
+      note: `Because you already hold ${stock.symbol}, a covered call can turn a slower upside view into premium income.`,
+      setup: "Look 2-6 weeks out and choose a strike above your desired exit price so assignment aligns with your plan.",
+      risk: "You cap your upside if the stock runs through the strike quickly.",
+    });
+
+    ideas.push({
+      bias: "hedge",
+      strategy: "Protective put",
+      fit: "Hedge",
+      note: `This is the cleanest first hedge when you want to stay long ${stock.symbol} but define downside around a catalyst or weak tape.`,
+      setup: "Start with a near-support strike or a delta around 0.25 to 0.40 depending on how much protection you want.",
+      risk: "Protection costs premium, which can drag returns if the stock stabilizes instead of falling.",
+    });
+
+    ideas.push({
+      bias: "hedge",
+      strategy: "Collar",
+      fit: "Hedge / income",
+      note: `A collar can lower hedge cost by financing part of a protective put with a covered call when you are willing to limit upside.`,
+      setup: "Pair a put below support with a call above your target exit so the position is protected inside a defined range.",
+      risk: "Downside improves, but upside is capped and the trade is more restrictive than holding shares outright.",
+    });
+  }
+
+  if (!snapshot.aboveTrend || snapshot.weakDay) {
+    ideas.push({
+      bias: "bearish",
+      strategy: "Bear put spread",
+      fit: "Bearish",
+      note: `${stock.symbol} is showing weaker tape, so a debit put spread gives downside exposure with limited risk.`,
+      setup: "Use 30-60 DTE and center the long strike near the breakdown area you expect to fail.",
+      risk: "If the stock chops sideways or rebounds, the debit can decay quickly.",
+    });
+  }
+
+  ideas.push({
+    bias: "neutral",
+    strategy: "Wait for implied move, then choose direction",
+    fit: "Neutral / planning",
+    note: `If ${stock.symbol} is not giving a clean signal, the best options idea may be to wait for a clearer setup instead of forcing premium exposure.`,
+    setup: "Track earnings, news, and whether price reclaims trend or loses support before choosing bullish or bearish exposure.",
+    risk: "The main risk is overtrading low-conviction setups just because options are available.",
+  });
+
+  return ideas;
+}
+
+function syncOptionsStockSelect() {
+  if (!optionsStockSelect) {
+    return;
+  }
+
+  const stocks = latestChartResults.filter((stock) => !stock.error);
+  optionsStockSelect.replaceChildren();
+
+  if (!stocks.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No watchlist stock available";
+    optionsStockSelect.appendChild(option);
+    optionsStockSelect.disabled = true;
+    selectedOptionsSymbol = "";
+    return;
+  }
+
+  optionsStockSelect.disabled = false;
+  if (!selectedOptionsSymbol || !stocks.some((stock) => stock.symbol === selectedOptionsSymbol)) {
+    selectedOptionsSymbol = stocks[0].symbol;
+  }
+
+  stocks.forEach((stock) => {
+    const option = document.createElement("option");
+    option.value = stock.symbol;
+    option.textContent = stock.label && stock.label !== stock.symbol ? `${stock.symbol} — ${stock.label}` : stock.symbol;
+    if (stock.symbol === selectedOptionsSymbol) {
+      option.selected = true;
+    }
+    optionsStockSelect.appendChild(option);
+  });
+}
+
+function renderOptionsIdeas() {
+  if (!optionsIdeasRoot || !optionsSummary) {
+    return;
+  }
+
+  optionsIdeasRoot.replaceChildren();
+  const stocks = latestChartResults.filter((stock) => !stock.error);
+  if (!stocks.length) {
+    optionsSummary.textContent = `Add a ${currentMarketDescriptor()} ticker with available data to see options ideas.`;
+    const empty = document.createElement("p");
+    empty.className = "decision-empty";
+    empty.textContent = "Options ideas appear here after the dashboard loads valid watchlist charts.";
+    optionsIdeasRoot.appendChild(empty);
+    return;
+  }
+
+  const selectedStock = stocks.find((stock) => stock.symbol === selectedOptionsSymbol) || stocks[0];
+  selectedOptionsSymbol = selectedStock.symbol;
+  if (optionsStockSelect) {
+    optionsStockSelect.value = selectedOptionsSymbol;
+  }
+
+  const snapshot = stockSignalSnapshot(selectedStock);
+  const selectedBias = optionsBiasSelect?.value || "all";
+  const ideas = optionIdeasForStock(selectedStock).filter((idea) => selectedBias === "all" || idea.bias === selectedBias);
+
+  optionsSummary.textContent = `${selectedStock.symbol} is ${snapshot?.aboveTrend ? "above" : "below"} trend, ${snapshot ? (snapshot.dayChangePct >= 0 ? "up" : "down") : "moving"} ${snapshot ? Math.abs(snapshot.dayChangePct).toFixed(2) : "0.00"}% today, and ${snapshot?.hasPosition ? "already has" : "does not have"} a saved position. These are educational setup ideas, not live contract quotes.`;
+
+  if (!ideas.length) {
+    const empty = document.createElement("p");
+    empty.className = "decision-empty";
+    empty.textContent = "No options ideas match the current filter. Switch the strategy focus to see more setups.";
+    optionsIdeasRoot.appendChild(empty);
+    return;
+  }
+
+  ideas.forEach((idea) => {
+    const card = document.createElement("article");
+    card.className = "options-card";
+
+    const header = document.createElement("div");
+    header.className = "options-card-header";
+
+    const title = document.createElement("h3");
+    title.className = "options-card-title";
+    title.textContent = idea.strategy;
+
+    const pill = document.createElement("span");
+    pill.className = `options-pill ${idea.bias}`;
+    pill.textContent = idea.fit;
+
+    const note = document.createElement("p");
+    note.className = "options-card-note";
+    note.textContent = idea.note;
+
+    const setup = document.createElement("p");
+    setup.className = "options-card-detail";
+    setup.textContent = `Setup: ${idea.setup}`;
+
+    const risk = document.createElement("p");
+    risk.className = "options-card-detail";
+    risk.textContent = `Risk: ${idea.risk}`;
+
+    header.append(title, pill);
+    card.append(header, note, setup, risk);
+    optionsIdeasRoot.appendChild(card);
+  });
+}
+
+function refreshDecisionPanels() {
+  renderWatchlistActions();
+  syncOptionsStockSelect();
+  renderOptionsIdeas();
 }
 
 function updateBenchmarkRegionNote() {
@@ -788,7 +1216,9 @@ async function loadNews() {
     throw new Error(payload.error || "Unable to load watchlist news");
   }
 
-  renderNews(payload.groups || []);
+  latestNewsGroups = payload.groups || [];
+  renderNews(latestNewsGroups);
+  renderWatchlistActions();
 }
 
 async function loadVersion() {
@@ -1230,8 +1660,10 @@ async function loadCharts() {
   cardsRoot.innerHTML = "";
   const activeWatchlist = filteredWatchlist();
   if (!activeWatchlist.length) {
+    latestChartResults = [];
     overviewTotalValue.textContent = "Total watchlist value: --";
     renderOverview([], []);
+    refreshDecisionPanels();
     updateStatus(`Your ${currentMarketDescriptor()} watchlist is empty. Add a ticker to get started.`);
     return;
   }
@@ -1262,8 +1694,10 @@ async function loadCharts() {
   );
 
   const [results, benchmarks] = await Promise.all([Promise.all(tasks), Promise.all(benchmarkTasks)]);
+  latestChartResults = results;
   renderOverview(results, benchmarks);
   results.forEach(renderCard);
+  refreshDecisionPanels();
   updateStatus(
     `Showing ${results.length} ${currentMarketDescriptor()} chart${results.length === 1 ? "" : "s"} for ${currentRangeLabel()}.`
   );
@@ -1498,6 +1932,13 @@ marketSelect?.addEventListener("change", () => {
   renderBenchmarkControls();
   closePositionModal();
   refreshDashboard().catch(handleError);
+});
+optionsStockSelect?.addEventListener("change", () => {
+  selectedOptionsSymbol = optionsStockSelect.value;
+  renderOptionsIdeas();
+});
+optionsBiasSelect?.addEventListener("change", () => {
+  renderOptionsIdeas();
 });
 currencySelect.addEventListener("change", () => loadCharts().catch(handleError));
 changeModeSelect.addEventListener("change", () => loadCharts().catch(handleError));

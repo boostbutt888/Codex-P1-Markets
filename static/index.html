@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Stock Dashboard</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260516a" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260516b" />
   </head>
   <body>
     <div class="page-shell">
@@ -136,6 +136,52 @@
               <p id="status-message" class="status-message">Loading watchlist…</p>
             </section>
             <section id="cards" class="card-grid" aria-live="polite"></section>
+          </div>
+        </section>
+
+        <section class="actions-panel collapsible-panel" data-collapsible="actions">
+          <button class="panel-toggle" type="button" aria-expanded="true">
+            <div class="panel-toggle-copy">
+              <p class="overview-kicker">Watchlist Actions</p>
+              <h2>What to review next</h2>
+              <p class="overview-note">Rules-based prompts to help you decide whether to review, wait, hedge, or manage each watchlist name.</p>
+            </div>
+            <span class="panel-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <div class="panel-body">
+            <div id="watchlist-actions" class="actions-grid" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="options-panel collapsible-panel" data-collapsible="options">
+          <button class="panel-toggle" type="button" aria-expanded="true">
+            <div class="panel-toggle-copy">
+              <p class="overview-kicker">Options Ideas</p>
+              <h2>Strategy ideas by watchlist stock</h2>
+              <p class="overview-note">Educational options setups generated from the selected stock's trend, current move, and whether you already hold a position.</p>
+            </div>
+            <span class="panel-toggle-icon" aria-hidden="true"></span>
+          </button>
+          <div class="panel-body">
+            <div class="options-toolbar">
+              <label class="range-picker options-picker">
+                Watchlist stock
+                <select id="options-stock-select"></select>
+              </label>
+              <label class="range-picker options-picker">
+                Strategy focus
+                <select id="options-bias-select">
+                  <option value="all" selected>All</option>
+                  <option value="bullish">Bullish</option>
+                  <option value="bearish">Bearish</option>
+                  <option value="neutral">Neutral</option>
+                  <option value="income">Income</option>
+                  <option value="hedge">Hedge</option>
+                </select>
+              </label>
+            </div>
+            <p id="options-summary" class="options-summary">Select a watchlist stock to load strategy ideas.</p>
+            <div id="options-ideas" class="options-grid" aria-live="polite"></div>
           </div>
         </section>
 
@@ -273,6 +319,6 @@
       </section>
     </div>
 
-    <script src="/static/app.js?v=20260516a" defer></script>
+    <script src="/static/app.js?v=20260516b" defer></script>
   </body>
 </html>
