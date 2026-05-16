@@ -2,6 +2,7 @@ const cardsRoot = document.querySelector("#cards");
 const statusMessage = document.querySelector("#status-message");
 const watchlistForm = document.querySelector("#watchlist-form");
 const appVersionNode = document.querySelector("#app-version");
+const appVersionFooterNode = document.querySelector("#app-version-footer");
 const symbolInput = document.querySelector("#symbol-input");
 const labelInput = document.querySelector("#label-input");
 const refreshButton = document.querySelector("#refresh-button");
@@ -791,7 +792,8 @@ async function loadNews() {
 }
 
 async function loadVersion() {
-  if (!appVersionNode) {
+  const versionNodes = [appVersionNode, appVersionFooterNode].filter(Boolean);
+  if (!versionNodes.length) {
     return;
   }
 
@@ -801,11 +803,16 @@ async function loadVersion() {
     if (!response.ok) {
       throw new Error(payload.error || "Unable to load version");
     }
-    appVersionNode.textContent = payload.display || "";
-    appVersionNode.title = payload.commit ? `Commit ${payload.commit}` : "";
+    versionNodes.forEach((node) => {
+      node.textContent = payload.display || "";
+      node.title = payload.commit ? `Commit ${payload.commit}` : "";
+    });
   } catch (error) {
     console.warn("Unable to load app version.", error);
-    appVersionNode.textContent = "";
+    versionNodes.forEach((node) => {
+      node.textContent = "";
+      node.title = "";
+    });
   }
 }
 

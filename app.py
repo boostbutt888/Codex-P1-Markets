@@ -308,22 +308,48 @@ def base_release_version() -> str:
     return match.group(1).strip()
 
 
+def git_executable() -> str:
+    candidates = ["git"]
+    if os.name == "nt":
+        candidates.extend(
+            [
+                r"C:\Program Files\Git\cmd\git.exe",
+                r"C:\Program Files\Git\bin\git.exe",
+            ]
+        )
+
+    for candidate in candidates:
+        try:
+            result = subprocess.run(
+                [candidate, "--version"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        if result.stdout.strip():
+            return candidate
+
+    return "git"
+
+
+def run_git_command(*args: str) -> str:
+    result = subprocess.run(
+        [git_executable(), *args],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.strip()
+
+
 def git_build_metadata() -> dict:
     try:
-        commit_count = subprocess.run(
-            ["git", "rev-list", "--count", "HEAD"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        short_sha = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
+        commit_count = run_git_command("rev-list", "--count", "HEAD")
+        short_sha = run_git_command("rev-parse", "--short", "HEAD")
     except (OSError, subprocess.CalledProcessError):
         return {"build": "0", "commit": "unknown"}
 
@@ -336,11 +362,13 @@ def git_build_metadata() -> dict:
 def current_version_payload() -> dict:
     release = base_release_version()
     metadata = git_build_metadata()
+    version_number = f"{release}+{metadata['build']}.{metadata['commit']}"
     return {
         "release": release,
         "build": metadata["build"],
         "commit": metadata["commit"],
-        "display": f"v{release}+{metadata['build']}",
+        "versionNumber": version_number,
+        "display": f"v{version_number}",
     }
 
 
