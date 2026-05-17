@@ -6,6 +6,7 @@ const appVersionFooterNode = document.querySelector("#app-version-footer");
 const actionsRoot = document.querySelector("#watchlist-actions");
 const mainContent = document.querySelector("main");
 const sectionArrangeList = document.querySelector("#section-arrange-list");
+const controlsOpenButton = document.querySelector("#controls-open-button");
 const symbolInput = document.querySelector("#symbol-input");
 const labelInput = document.querySelector("#label-input");
 const refreshButton = document.querySelector("#refresh-button");
@@ -43,6 +44,8 @@ const positionModalClear = document.querySelector("#position-modal-clear");
 const positionModalInput = document.querySelector("#position-modal-input");
 const positionModalAveragePriceInput = document.querySelector("#position-modal-average-price");
 const positionModalSymbol = document.querySelector("#position-modal-symbol");
+const controlsModal = document.querySelector("#controls-modal");
+const controlsCloseButton = document.querySelector("#controls-close-button");
 const collapsiblePanels = document.querySelectorAll(".collapsible-panel");
 const watchlistSearchResults = document.querySelector("#watchlist-search-results");
 
@@ -1148,6 +1151,26 @@ function closePositionModal() {
   activePositionTarget = null;
 }
 
+function openControlsModal() {
+  if (!controlsModal) {
+    return;
+  }
+
+  controlsModal.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeControlsModal() {
+  if (!controlsModal) {
+    return;
+  }
+
+  controlsModal.hidden = true;
+  if (positionModal?.hidden !== false) {
+    document.body.style.overflow = "";
+  }
+}
+
 async function savePositionForSymbol(symbol, market, rawValue) {
   const nextPosition = rawValue === "" ? null : Number(rawValue);
 
@@ -2231,10 +2254,18 @@ marketStockCountSelect.addEventListener("change", () => {
   }
 });
 positionModalClose?.addEventListener("click", closePositionModal);
+controlsOpenButton?.addEventListener("click", openControlsModal);
+controlsCloseButton?.addEventListener("click", closeControlsModal);
 positionModal?.addEventListener("click", (event) => {
   const target = event.target;
   if (target instanceof HTMLElement && target.dataset.closeModal === "true") {
     closePositionModal();
+  }
+});
+controlsModal?.addEventListener("click", (event) => {
+  const target = event.target;
+  if (target instanceof HTMLElement && target.dataset.closeControls === "true") {
+    closeControlsModal();
   }
 });
 positionModalClear?.addEventListener("click", async () => {
@@ -2293,6 +2324,9 @@ positionModalAveragePriceInput?.addEventListener("keydown", (event) => {
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && positionModal && !positionModal.hidden) {
     closePositionModal();
+  }
+  if (event.key === "Escape" && controlsModal && !controlsModal.hidden) {
+    closeControlsModal();
   }
 });
 themeSelect.addEventListener("change", () => {
