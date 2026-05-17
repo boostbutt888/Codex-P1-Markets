@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daily Stock Dashboard</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260516b" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260517b" />
   </head>
   <body>
     <div class="page-shell">
@@ -80,11 +80,19 @@
                 <option value="3mo" selected>3M</option>
                 <option value="6mo">6M</option>
                 <option value="1y">1Y</option>
+                <option value="2y">2Y</option>
                 <option value="5y">5Y</option>
                 <option value="max">Max</option>
               </select>
             </label>
           </div>
+          <section class="section-arranger">
+            <div class="section-arranger-copy">
+              <p class="overview-kicker">Arrange Sections</p>
+              <p class="overview-note">Move the dashboard sections up or down to match the order you want. Your layout is saved on this device.</p>
+            </div>
+            <div id="section-arrange-list" class="section-arrange-list" aria-live="polite"></div>
+          </section>
         </div>
       </section>
 
@@ -201,6 +209,18 @@
                 <p id="benchmark-region-note" class="overview-note">Benchmark View follows the selected watchlist region.</p>
                 <p id="overview-summary" class="overview-summary">Waiting for live data…</p>
               </div>
+              <label class="range-picker benchmark-range-picker">
+                Timeline
+                <select id="benchmark-range-select">
+                  <option value="1mo">1M</option>
+                  <option value="3mo" selected>3M</option>
+                  <option value="6mo">6M</option>
+                  <option value="1y">1Y</option>
+                  <option value="2y">2Y</option>
+                  <option value="5y">5Y</option>
+                  <option value="max">Max</option>
+                </select>
+              </label>
             </div>
             <div id="benchmark-controls" class="benchmark-controls"></div>
             <svg
@@ -211,6 +231,7 @@
               role="img"
               aria-label="Watchlist average versus market benchmarks chart"
             ></svg>
+            <div id="overview-tooltip" class="overview-tooltip" hidden></div>
             <div id="overview-legend" class="overview-legend"></div>
           </div>
         </section>
@@ -311,6 +332,10 @@
             Shares / units
             <input id="position-modal-input" type="text" inputmode="decimal" placeholder="Optional" />
           </label>
+          <label class="field-group">
+            Average price
+            <input id="position-modal-average-price" type="text" inputmode="decimal" placeholder="Optional" />
+          </label>
         </div>
         <div class="modal-actions">
           <button id="position-modal-clear" class="button" type="button">Clear</button>
@@ -319,6 +344,6 @@
       </section>
     </div>
 
-    <script src="/static/app.js?v=20260516b" defer></script>
+    <script src="/static/app.js?v=20260517b" defer></script>
   </body>
 </html>

@@ -4,6 +4,8 @@ const watchlistForm = document.querySelector("#watchlist-form");
 const appVersionNode = document.querySelector("#app-version");
 const appVersionFooterNode = document.querySelector("#app-version-footer");
 const actionsRoot = document.querySelector("#watchlist-actions");
+const mainContent = document.querySelector("main");
+const sectionArrangeList = document.querySelector("#section-arrange-list");
 const symbolInput = document.querySelector("#symbol-input");
 const labelInput = document.querySelector("#label-input");
 const refreshButton = document.querySelector("#refresh-button");
@@ -16,8 +18,10 @@ const themeSelect = document.querySelector("#theme-select");
 const currencySelect = document.querySelector("#currency-select");
 const changeModeSelect = document.querySelector("#change-mode-select");
 const rangeSelect = document.querySelector("#range-select");
+const benchmarkRangeSelect = document.querySelector("#benchmark-range-select");
 const template = document.querySelector("#stock-card-template");
 const overviewChart = document.querySelector("#overview-chart");
+const overviewTooltip = document.querySelector("#overview-tooltip");
 const overviewLegend = document.querySelector("#overview-legend");
 const overviewSummary = document.querySelector("#overview-summary");
 const overviewTotalValue = document.querySelector("#overview-total-value");
@@ -37,6 +41,7 @@ const positionModalClose = document.querySelector("#position-modal-close");
 const positionModalSave = document.querySelector("#position-modal-save");
 const positionModalClear = document.querySelector("#position-modal-clear");
 const positionModalInput = document.querySelector("#position-modal-input");
+const positionModalAveragePriceInput = document.querySelector("#position-modal-average-price");
 const positionModalSymbol = document.querySelector("#position-modal-symbol");
 const collapsiblePanels = document.querySelectorAll(".collapsible-panel");
 const watchlistSearchResults = document.querySelector("#watchlist-search-results");
@@ -88,6 +93,7 @@ const RANGE_LABELS = {
   "3mo": "3 months",
   "6mo": "6 months",
   "1y": "1 year",
+  "2y": "2 years",
   "5y": "5 years",
   max: "max history",
 };
@@ -97,6 +103,7 @@ const REFRESH_MODE_STORAGE_KEY = "stock-dashboard-refresh-mode";
 const REFRESH_INTERVAL_STORAGE_KEY = "stock-dashboard-refresh-interval";
 const MARKET_STOCK_COUNT_STORAGE_KEY = "stock-dashboard-market-stock-count";
 const ACTIVE_WATCHLIST_MARKET_STORAGE_KEY = "stock-dashboard-active-watchlist-market";
+const SECTION_ORDER_STORAGE_KEY = "stock-dashboard-section-order";
 const RANDOM_THEME_VARIANTS = [
   { theme: "light", variant: "terracotta" },
   { theme: "light", variant: "ocean" },
@@ -166,6 +173,132 @@ function currentMarketDescriptor() {
     return "all markets";
   }
   return currentMarket() === "SG" ? "Singapore" : "US";
+}
+
+function reorderableSections() {
+  if (!mainContent) {
+    return [];
+  }
+  return Array.from(mainContent.querySelectorAll("section.collapsible-panel[data-collapsible]"));
+}
+
+function sectionLabel(key) {
+  const labels = {
+    tickers: "Tickers",
+    actions: "Watchlist Actions",
+    options: "Options Ideas",
+    benchmark: "Benchmark View",
+    news: "Watchlist News",
+    market: "Market View",
+  };
+  return labels[key] || key;
+}
+
+function getSavedSectionOrder() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SECTION_ORDER_STORAGE_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function effectiveSectionOrder() {
+  const sections = reorderableSections();
+  const keys = sections.map((section) => section.dataset.collapsible).filter(Boolean);
+  const saved = getSavedSectionOrder();
+  const ordered = saved.filter((key) => keys.includes(key));
+  keys.forEach((key) => {
+    if (!ordered.includes(key)) {
+      ordered.push(key);
+    }
+  });
+  return ordered;
+}
+
+function saveSectionOrder(order) {
+  localStorage.setItem(SECTION_ORDER_STORAGE_KEY, JSON.stringify(order));
+}
+
+function applySectionOrder(order = effectiveSectionOrder()) {
+  if (!mainContent) {
+    return;
+  }
+
+  const sectionsByKey = new Map(
+    reorderableSections().map((section) => [section.dataset.collapsible, section])
+  );
+
+  order.forEach((key) => {
+    const section = sectionsByKey.get(key);
+    if (section) {
+      mainContent.appendChild(section);
+    }
+  });
+}
+
+function moveSection(key, direction) {
+  const order = effectiveSectionOrder();
+  const index = order.indexOf(key);
+  if (index === -1) {
+    return;
+  }
+
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= order.length) {
+    return;
+  }
+
+  [order[index], order[targetIndex]] = [order[targetIndex], order[index]];
+  saveSectionOrder(order);
+  applySectionOrder(order);
+  renderSectionArranger();
+}
+
+function renderSectionArranger() {
+  if (!sectionArrangeList) {
+    return;
+  }
+
+  const order = effectiveSectionOrder();
+  sectionArrangeList.replaceChildren();
+
+  order.forEach((key, index) => {
+    const item = document.createElement("div");
+    item.className = "section-arrange-item";
+
+    const name = document.createElement("p");
+    name.className = "section-arrange-name";
+    name.textContent = sectionLabel(key);
+
+    const controls = document.createElement("div");
+    controls.className = "section-arrange-controls";
+
+    const upButton = document.createElement("button");
+    upButton.type = "button";
+    upButton.className = "section-arrange-button";
+    upButton.textContent = "Up";
+    upButton.disabled = index === 0;
+    upButton.addEventListener("click", () => moveSection(key, -1));
+
+    const downButton = document.createElement("button");
+    downButton.type = "button";
+    downButton.className = "section-arrange-button";
+    downButton.textContent = "Down";
+    downButton.disabled = index === order.length - 1;
+    downButton.addEventListener("click", () => moveSection(key, 1));
+
+    controls.append(upButton, downButton);
+    item.append(name, controls);
+    sectionArrangeList.appendChild(item);
+  });
+}
+
+function initializeSectionOrder() {
+  const order = effectiveSectionOrder();
+  saveSectionOrder(order);
+  applySectionOrder(order);
+  renderSectionArranger();
 }
 
 function averageClose(points, count) {
@@ -359,22 +492,27 @@ function renderWatchlistActions() {
 
     const symbol = document.createElement("p");
     symbol.className = "action-card-symbol";
-    symbol.textContent = stock.symbol;
+    symbol.textContent = action.tag;
 
     const title = document.createElement("h3");
     title.className = "action-card-title";
-    title.textContent = action.title;
+    title.textContent =
+      stock.label && stock.label !== stock.symbol ? `${stock.label} (${stock.symbol})` : stock.symbol;
 
     const summary = document.createElement("p");
     summary.className = "action-card-summary";
-    summary.textContent = action.summary;
+    summary.textContent = action.title;
 
     const tag = document.createElement("span");
     tag.className = "action-tag";
-    tag.textContent = action.tag;
+    tag.textContent = "Action";
 
     const checklist = document.createElement("div");
     checklist.className = "action-checklist";
+    const reason = document.createElement("p");
+    reason.className = "action-check";
+    reason.textContent = action.summary;
+    checklist.appendChild(reason);
     action.checklist.forEach((item) => {
       const line = document.createElement("p");
       line.className = "action-check";
@@ -952,14 +1090,48 @@ function formatPositionValue(position, price, currency) {
   )}`;
 }
 
+function formatPositionSummary(position, averagePrice, price, currency) {
+  if (position === null || position === undefined || position === "") {
+    return "Shares: -- | Avg: -- | Value: -- | P/L: --";
+  }
+
+  const numericPosition = Number(position);
+  const numericPrice = Number(price);
+  const numericAveragePrice = Number(averagePrice);
+  if (Number.isNaN(numericPosition) || Number.isNaN(numericPrice)) {
+    return "Shares: -- | Avg: -- | Value: -- | P/L: --";
+  }
+
+  const displayFormatter = currencyFormatter(displayCurrency());
+  const marketValue = displayFormatter.format(
+    convertCurrency(numericPosition * numericPrice, currency || "USD")
+  );
+  const averagePriceText = Number.isFinite(numericAveragePrice)
+    ? displayFormatter.format(convertCurrency(numericAveragePrice, currency || "USD"))
+    : "--";
+
+  let profitLossText = "--";
+  if (Number.isFinite(numericAveragePrice) && numericAveragePrice > 0) {
+    const totalProfitLoss = (numericPrice - numericAveragePrice) * numericPosition;
+    const profitLossPercent = ((numericPrice - numericAveragePrice) / numericAveragePrice) * 100;
+    const sign = totalProfitLoss > 0 ? "+" : totalProfitLoss < 0 ? "-" : "";
+    profitLossText = `${sign}${displayFormatter.format(
+      Math.abs(convertCurrency(totalProfitLoss, currency || "USD"))
+    )} (${sign}${Math.abs(profitLossPercent).toFixed(2)}%)`;
+  }
+
+  return `Shares: ${formatPositionInput(numericPosition)} | Avg: ${averagePriceText} | Value: ${marketValue} | P/L: ${profitLossText}`;
+}
+
 function openPositionModal(stock) {
-  if (!positionModal || !positionModalInput || !positionModalSymbol) {
+  if (!positionModal || !positionModalInput || !positionModalAveragePriceInput || !positionModalSymbol) {
     return;
   }
 
   activePositionTarget = { symbol: stock.symbol, market: normalizeMarket(stock.market) };
   positionModalSymbol.textContent = `${stock.symbol}${stock.label && stock.label !== stock.symbol ? ` • ${stock.label}` : ""} • ${normalizeMarket(stock.market)}`;
   positionModalInput.value = formatPositionInput(stock.position);
+  positionModalAveragePriceInput.value = formatPositionInput(stock.averagePrice);
   positionModal.hidden = false;
   document.body.style.overflow = "hidden";
   positionModalInput.focus();
@@ -996,8 +1168,47 @@ async function savePositionForSymbol(symbol, market, rawValue) {
   return nextPosition;
 }
 
+async function savePositionDetailsForSymbol(symbol, market, rawValue, rawAveragePriceValue) {
+  const nextPosition = rawValue === "" ? null : Number(rawValue);
+  const nextAveragePrice = rawAveragePriceValue === "" ? null : Number(rawAveragePriceValue);
+
+  if (rawValue !== "" && Number.isNaN(nextPosition)) {
+    throw new Error(`Shares for ${symbol} must be a valid number.`);
+  }
+  if (rawAveragePriceValue !== "" && Number.isNaN(nextAveragePrice)) {
+    throw new Error(`Average price for ${symbol} must be a valid number.`);
+  }
+
+  watchlist = watchlist.map((entry) =>
+    entry.symbol === symbol && normalizeMarket(entry.market) === normalizeMarket(market)
+      ? {
+          ...entry,
+          ...(nextPosition === null ? { position: undefined } : { position: nextPosition }),
+          ...(nextAveragePrice === null ? { averagePrice: undefined } : { averagePrice: nextAveragePrice }),
+        }
+      : entry
+  );
+
+  await saveWatchlist();
+  return { position: nextPosition, averagePrice: nextAveragePrice };
+}
+
 function currentRangeLabel() {
   return RANGE_LABELS[rangeSelect.value] || rangeSelect.value;
+}
+
+function syncRangeControls(activeValue) {
+  if (rangeSelect && rangeSelect.value !== activeValue) {
+    rangeSelect.value = activeValue;
+  }
+  if (benchmarkRangeSelect && benchmarkRangeSelect.value !== activeValue) {
+    benchmarkRangeSelect.value = activeValue;
+  }
+}
+
+function updateRange(activeValue) {
+  syncRangeControls(activeValue);
+  loadCharts().catch(handleError);
 }
 
 function formatChange(value, pct, currency) {
@@ -1547,8 +1758,131 @@ function renderLegend(items) {
   });
 }
 
+function formatOverviewDate(timestamp) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(Number(timestamp) * 1000));
+}
+
+function formatNormalizedPercent(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "--";
+  }
+  const performance = numericValue - 100;
+  const sign = performance > 0 ? "+" : "";
+  return `${sign}${performance.toFixed(2)}%`;
+}
+
+function findNearestSeriesPoint(series, timestamp) {
+  if (!Array.isArray(series?.points) || !series.points.length) {
+    return null;
+  }
+
+  let nearest = series.points[0];
+  let nearestDistance = Math.abs(Number(nearest.timestamp) - Number(timestamp));
+  for (const point of series.points) {
+    const distance = Math.abs(Number(point.timestamp) - Number(timestamp));
+    if (distance < nearestDistance) {
+      nearest = point;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
+function hideOverviewTooltip() {
+  if (!overviewTooltip) {
+    return;
+  }
+  overviewTooltip.hidden = true;
+  overviewChart.querySelector(".overview-hover-line")?.remove();
+  overviewChart.querySelectorAll(".overview-hover-dot").forEach((node) => node.remove());
+}
+
+function showOverviewTooltip(seriesCollection, width, height, padding, min, max, event) {
+  if (!overviewTooltip || !seriesCollection.length) {
+    return;
+  }
+
+  const rect = overviewChart.getBoundingClientRect();
+  const relativeX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+  const xRatio = rect.width ? relativeX / rect.width : 0;
+  const chartX = padding + xRatio * (width - padding * 2);
+  const primaryPoints = seriesCollection[0].points;
+  if (!primaryPoints.length) {
+    hideOverviewTooltip();
+    return;
+  }
+
+  const stepX = (width - padding * 2) / Math.max(primaryPoints.length - 1, 1);
+  const nearestIndex = Math.min(
+    primaryPoints.length - 1,
+    Math.max(0, Math.round((chartX - padding) / Math.max(stepX, 1)))
+  );
+  const anchorPoint = primaryPoints[nearestIndex];
+  if (!anchorPoint) {
+    hideOverviewTooltip();
+    return;
+  }
+
+  const spread = Math.max(max - min, 1);
+  const anchorX = padding + nearestIndex * stepX;
+  const pointsForTooltip = seriesCollection
+    .map((series) => {
+      const point = findNearestSeriesPoint(series, anchorPoint.timestamp);
+      if (!point) {
+        return null;
+      }
+      const y = height - padding - ((Number(point.close) - min) / spread) * (height - padding * 2);
+      return { ...series, point, y };
+    })
+    .filter(Boolean);
+
+  overviewChart.querySelector(".overview-hover-line")?.remove();
+  overviewChart.querySelectorAll(".overview-hover-dot").forEach((node) => node.remove());
+
+  const hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  hoverLine.setAttribute("class", "overview-hover-line");
+  hoverLine.setAttribute("x1", anchorX.toFixed(2));
+  hoverLine.setAttribute("x2", anchorX.toFixed(2));
+  hoverLine.setAttribute("y1", String(padding));
+  hoverLine.setAttribute("y2", String(height - padding));
+  overviewChart.appendChild(hoverLine);
+
+  pointsForTooltip.forEach((item) => {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("class", "overview-hover-dot");
+    dot.setAttribute("cx", anchorX.toFixed(2));
+    dot.setAttribute("cy", item.y.toFixed(2));
+    dot.setAttribute("r", "4.5");
+    dot.setAttribute("fill", item.color);
+    overviewChart.appendChild(dot);
+  });
+
+  const tooltipRows = pointsForTooltip
+    .map(
+      (item) =>
+        `<div class="overview-tooltip-row"><span class="overview-tooltip-swatch" style="background:${item.color}"></span><span>${item.label}</span><strong>${formatNormalizedPercent(item.point.close)}</strong></div>`
+    )
+    .join("");
+
+  overviewTooltip.innerHTML = `<p class="overview-tooltip-date">${formatOverviewDate(anchorPoint.timestamp)}</p>${tooltipRows}`;
+  overviewTooltip.hidden = false;
+
+  const tooltipX = rect.left + (anchorX / width) * rect.width;
+  const prefersRight = relativeX < rect.width * 0.65;
+  const left = prefersRight ? relativeX + 18 : relativeX - 230;
+  const top = Math.max(12, (anchorPoint ? event.clientY - rect.top : 0) - 18);
+  overviewTooltip.style.left = `${Math.max(10, Math.min(left, rect.width - 220))}px`;
+  overviewTooltip.style.top = `${Math.min(top, rect.height - 20)}px`;
+}
+
 function renderOverview(stocks, benchmarks) {
   overviewChart.replaceChildren();
+  hideOverviewTooltip();
   const availableStocks = stocks.filter((stock) => !stock.error && Array.isArray(stock.points) && stock.points.length);
   const totalValue = availableStocks.reduce((sum, stock) => {
     const position = Number(stock.position);
@@ -1607,6 +1941,19 @@ function renderOverview(stocks, benchmarks) {
     path.setAttribute("d", buildLinePath(series.points, width, height, padding, min, max));
     overviewChart.appendChild(path);
   });
+
+  const interactiveSeries = [
+    { label: "Watchlist average", color: WATCHLIST_AVERAGE_COLOR, points: averageSeries },
+    ...benchmarkSeries.map((series) => ({
+      label: series.shortLabel,
+      color: series.color,
+      points: series.points,
+    })),
+  ];
+
+  overviewChart.onmousemove = (event) =>
+    showOverviewTooltip(interactiveSeries, width, height, padding, min, max, event);
+  overviewChart.onmouseleave = () => hideOverviewTooltip();
 
   renderLegend([
     { label: "Watchlist average", color: WATCHLIST_AVERAGE_COLOR },
@@ -1712,7 +2059,12 @@ function renderCard(stock) {
   const premarketNode = node.querySelector(".stock-premarket");
   const liveStatusNode = node.querySelector(".stock-live-status");
   const liveBadgeNode = node.querySelector(".stock-live-badge");
-  positionValue.textContent = formatPositionValue(stock.position, stock.price, stock.currency);
+  positionValue.textContent = formatPositionSummary(
+    stock.position,
+    stock.averagePrice,
+    stock.price,
+    stock.currency
+  );
   premarketNode.textContent = formatPremarket(
     stock.preMarketChange,
     stock.preMarketChangePct,
@@ -1741,7 +2093,12 @@ function renderCard(stock) {
     node.querySelector(".stock-change").textContent = stock.error;
     node.querySelector(".stock-change").classList.add("negative");
     node.querySelector(".stock-meta").textContent = "Check the symbol or your network connection.";
-    positionValue.textContent = formatPositionValue(stock.position, stock.price, stock.currency);
+    positionValue.textContent = formatPositionSummary(
+      stock.position,
+      stock.averagePrice,
+      stock.price,
+      stock.currency
+    );
     premarketNode.textContent = "Premarket: --";
     liveStatusNode.textContent = "";
     liveBadgeNode.textContent = "";
@@ -1768,7 +2125,12 @@ function renderCard(stock) {
   ]
     .filter(Boolean)
     .join(" • ");
-  positionValue.textContent = formatPositionValue(stock.position, stock.price, stock.currency);
+  positionValue.textContent = formatPositionSummary(
+    stock.position,
+    stock.averagePrice,
+    stock.price,
+    stock.currency
+  );
   premarketNode.textContent = formatPremarket(
     stock.preMarketChange,
     stock.preMarketChangePct,
@@ -1881,7 +2243,7 @@ positionModalClear?.addEventListener("click", async () => {
   }
 
   try {
-    await savePositionForSymbol(activePositionTarget.symbol, activePositionTarget.market, "");
+    await savePositionDetailsForSymbol(activePositionTarget.symbol, activePositionTarget.market, "", "");
     updateStatus(`Cleared position for ${activePositionTarget.symbol}.`);
     closePositionModal();
     await loadCharts();
@@ -1890,12 +2252,17 @@ positionModalClear?.addEventListener("click", async () => {
   }
 });
 positionModalSave?.addEventListener("click", async () => {
-  if (!activePositionTarget || !positionModalInput) {
+  if (!activePositionTarget || !positionModalInput || !positionModalAveragePriceInput) {
     return;
   }
 
   try {
-    await savePositionForSymbol(activePositionTarget.symbol, activePositionTarget.market, positionModalInput.value.trim());
+    await savePositionDetailsForSymbol(
+      activePositionTarget.symbol,
+      activePositionTarget.market,
+      positionModalInput.value.trim(),
+      positionModalAveragePriceInput.value.trim()
+    );
     updateStatus(`Saved position for ${activePositionTarget.symbol}.`);
     closePositionModal();
     await loadCharts();
@@ -1904,6 +2271,16 @@ positionModalSave?.addEventListener("click", async () => {
   }
 });
 positionModalInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    positionModalSave?.click();
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePositionModal();
+  }
+});
+positionModalAveragePriceInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
     positionModalSave?.click();
@@ -1942,7 +2319,8 @@ optionsBiasSelect?.addEventListener("change", () => {
 });
 currencySelect.addEventListener("change", () => loadCharts().catch(handleError));
 changeModeSelect.addEventListener("change", () => loadCharts().catch(handleError));
-rangeSelect.addEventListener("change", () => loadCharts().catch(handleError));
+rangeSelect.addEventListener("change", () => updateRange(rangeSelect.value));
+benchmarkRangeSelect?.addEventListener("change", () => updateRange(benchmarkRangeSelect.value));
 
 function handleError(error) {
   console.error(error);
@@ -1953,10 +2331,12 @@ async function init() {
   try {
     closePositionModal();
     await loadVersion();
+    syncRangeControls(rangeSelect?.value || "3mo");
     initializeMarketSelection();
     initializeTheme();
     initializeRefreshControls();
     initializeMarketControls();
+    initializeSectionOrder();
     initializeCollapsibles();
     renderBenchmarkControls();
     try {

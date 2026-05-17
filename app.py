@@ -415,6 +415,11 @@ def load_watchlist() -> dict:
                 clean_item["position"] = float(item.get("position"))
             except (TypeError, ValueError):
                 pass
+        if item.get("averagePrice") not in (None, ""):
+            try:
+                clean_item["averagePrice"] = float(item.get("averagePrice"))
+            except (TypeError, ValueError):
+                pass
         clean_symbols.append(clean_item)
 
     return {"symbols": clean_symbols}
@@ -427,16 +432,25 @@ def save_watchlist(payload: dict) -> None:
         label = str(item.get("label", symbol)).strip() or symbol
         market = normalize_watchlist_market(item.get("market"))
         position_value = item.get("position")
+        average_price_value = item.get("averagePrice")
         position = None
+        average_price = None
         if position_value not in (None, ""):
             try:
                 position = float(position_value)
             except (TypeError, ValueError):
                 position = None
+        if average_price_value not in (None, ""):
+            try:
+                average_price = float(average_price_value)
+            except (TypeError, ValueError):
+                average_price = None
         if symbol:
             clean_item = {"symbol": symbol, "label": label, "market": market}
             if position is not None:
                 clean_item["position"] = position
+            if average_price is not None:
+                clean_item["averagePrice"] = average_price
             clean_symbols.append(clean_item)
 
     with WATCHLIST_FILE.open("w", encoding="utf-8") as handle:
@@ -450,6 +464,7 @@ def range_to_days(range_value: str) -> int | None:
         "3mo": 92,
         "6mo": 183,
         "1y": 366,
+        "2y": 366 * 2,
         "5y": 366 * 5,
         "max": None,
     }
