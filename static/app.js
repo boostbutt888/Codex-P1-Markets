@@ -1308,20 +1308,44 @@ function formatSignedPercent(value) {
   return `${sign}${numericValue.toFixed(2)}%`;
 }
 
+function interpolateColor(startColor, endColor, ratio) {
+  return startColor.map((channel, index) =>
+    Math.round(channel + (endColor[index] - channel) * ratio)
+  );
+}
+
 function heatTileStyle(dayChangePct) {
   const numericValue = Number(dayChangePct);
   if (!Number.isFinite(numericValue)) {
     return "";
   }
 
-  const intensity = Math.min(Math.abs(numericValue) / 3, 1);
+  const intensity = Math.min(Math.abs(numericValue) / 6, 1);
   if (numericValue > 0) {
-    return `background: linear-gradient(160deg, rgba(22, 138, 92, ${0.72 + intensity * 0.2}), rgba(12, 84, 57, ${0.84 + intensity * 0.14})); border-color: rgba(62, 214, 149, ${0.42 + intensity * 0.28}); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);`;
+    const top = interpolateColor([34, 78, 48], [49, 255, 112], intensity);
+    const bottom = interpolateColor([18, 42, 28], [0, 132, 45], intensity);
+    return `background: linear-gradient(160deg, rgb(${top.join(", ")}), rgb(${bottom.join(", ")})); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); color: #f7fff9;`;
   }
   if (numericValue < 0) {
-    return `background: linear-gradient(160deg, rgba(198, 63, 50, ${0.72 + intensity * 0.2}), rgba(122, 28, 28, ${0.84 + intensity * 0.14})); border-color: rgba(255, 120, 103, ${0.42 + intensity * 0.28}); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);`;
+    const top = interpolateColor([88, 34, 34], [255, 72, 72], intensity);
+    const bottom = interpolateColor([46, 18, 18], [148, 0, 0], intensity);
+    return `background: linear-gradient(160deg, rgb(${top.join(", ")}), rgb(${bottom.join(", ")})); border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); color: #fff7f7;`;
   }
-  return "background: linear-gradient(160deg, rgba(84, 92, 101, 0.62), rgba(54, 60, 66, 0.82)); border-color: rgba(122, 132, 142, 0.36);";
+  return "background: linear-gradient(160deg, rgb(78, 86, 93), rgb(44, 49, 54)); border-color: transparent; color: #f3f5f7;";
+}
+
+function sectorTileSizeClass(stock, index, totalCount) {
+  const move = Math.abs(Number(stock.dayChangePct ?? 0));
+  if (index < 2 || move >= 4) {
+    return "sector-stock-tile-xl";
+  }
+  if (index < 6 || move >= 2.25) {
+    return "sector-stock-tile-lg";
+  }
+  if (index < 14 || totalCount <= 12) {
+    return "sector-stock-tile-md";
+  }
+  return "sector-stock-tile-sm";
 }
 
 function renderNews(groups) {
@@ -1647,16 +1671,17 @@ function renderSectorDetail(payload) {
   const grid = document.createElement("div");
   grid.className = "market-grid sector-stock-grid";
 
-  (payload.stocks || [])
+  const sortedStocks = (payload.stocks || [])
     .slice()
     .sort((left, right) => {
       const leftValue = Number(left.dayChangePct ?? -999);
       const rightValue = Number(right.dayChangePct ?? -999);
       return rightValue - leftValue;
-    })
-    .forEach((stock) => {
+    });
+
+  sortedStocks.forEach((stock, index) => {
     const tile = document.createElement("article");
-    tile.className = "market-tile sector-stock-tile";
+    tile.className = `market-tile sector-stock-tile ${sectorTileSizeClass(stock, index, sortedStocks.length)}`;
     if (stock.dayChangePct !== null && stock.dayChangePct !== undefined) {
       tile.style.cssText = heatTileStyle(stock.dayChangePct);
     }
@@ -1718,13 +1743,32 @@ function buildChart(points, positiveTrend) {
   return { linePath, fillPath, stroke, fill };
 }
 
-function buildLinePath(points, width, height, padding, min, max) {
+function timestampToChartX(timestamp, width, padding, minTimestamp, maxTimestamp) {
+  if (maxTimestamp <= minTimestamp) {
+    return width / 2;
+  }
+  const ratio = (Number(timestamp) - minTimestamp) / (maxTimestamp - minTimestamp);
+  return padding + ratio * (width - padding * 2);
+}
+
+function chartXToTimestamp(x, width, padding, minTimestamp, maxTimestamp) {
+  if (maxTimestamp <= minTimestamp) {
+    return minTimestamp;
+  }
+  const ratio = (x - padding) / (width - padding * 2);
+  return minTimestamp + ratio * (maxTimestamp - minTimestamp);
+}
+
+function pointCloseToChartY(close, height, padding, min, max) {
   const spread = Math.max(max - min, 1);
-  const stepX = (width - padding * 2) / Math.max(points.length - 1, 1);
+  return height - padding - ((Number(close) - min) / spread) * (height - padding * 2);
+}
+
+function buildLinePath(points, width, height, padding, min, max, minTimestamp, maxTimestamp) {
   return points
     .map((point, index) => {
-      const x = padding + index * stepX;
-      const y = height - padding - ((point.close - min) / spread) * (height - padding * 2);
+      const x = timestampToChartX(point.timestamp, width, padding, minTimestamp, maxTimestamp);
+      const y = pointCloseToChartY(point.close, height, padding, min, max);
       return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
     })
     .join(" ");
@@ -1825,7 +1869,17 @@ function hideOverviewTooltip() {
   overviewChart.querySelectorAll(".overview-hover-dot").forEach((node) => node.remove());
 }
 
-function showOverviewTooltip(seriesCollection, width, height, padding, min, max, event) {
+function showOverviewTooltip(
+  seriesCollection,
+  width,
+  height,
+  padding,
+  min,
+  max,
+  minTimestamp,
+  maxTimestamp,
+  event
+) {
   if (!overviewTooltip || !seriesCollection.length) {
     return;
   }
@@ -1840,27 +1894,23 @@ function showOverviewTooltip(seriesCollection, width, height, padding, min, max,
     return;
   }
 
-  const stepX = (width - padding * 2) / Math.max(primaryPoints.length - 1, 1);
-  const nearestIndex = Math.min(
-    primaryPoints.length - 1,
-    Math.max(0, Math.round((chartX - padding) / Math.max(stepX, 1)))
-  );
-  const anchorPoint = primaryPoints[nearestIndex];
+  const targetTimestamp = chartXToTimestamp(chartX, width, padding, minTimestamp, maxTimestamp);
+  const anchorPoint = findNearestSeriesPoint(seriesCollection[0], targetTimestamp);
   if (!anchorPoint) {
     hideOverviewTooltip();
     return;
   }
 
-  const spread = Math.max(max - min, 1);
-  const anchorX = padding + nearestIndex * stepX;
+  const anchorX = timestampToChartX(anchorPoint.timestamp, width, padding, minTimestamp, maxTimestamp);
   const pointsForTooltip = seriesCollection
     .map((series) => {
       const point = findNearestSeriesPoint(series, anchorPoint.timestamp);
       if (!point) {
         return null;
       }
-      const y = height - padding - ((Number(point.close) - min) / spread) * (height - padding * 2);
-      return { ...series, point, y };
+      const x = timestampToChartX(point.timestamp, width, padding, minTimestamp, maxTimestamp);
+      const y = pointCloseToChartY(point.close, height, padding, min, max);
+      return { ...series, point, x, y };
     })
     .filter(Boolean);
 
@@ -1878,7 +1928,7 @@ function showOverviewTooltip(seriesCollection, width, height, padding, min, max,
   pointsForTooltip.forEach((item) => {
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     dot.setAttribute("class", "overview-hover-dot");
-    dot.setAttribute("cx", anchorX.toFixed(2));
+    dot.setAttribute("cx", item.x.toFixed(2));
     dot.setAttribute("cy", item.y.toFixed(2));
     dot.setAttribute("r", "4.5");
     dot.setAttribute("fill", item.color);
@@ -1935,9 +1985,15 @@ function renderOverview(stocks, benchmarks) {
   const width = 960;
   const height = 320;
   const padding = 24;
+  const allTimestampValues = [
+    ...averageSeries.map((point) => Number(point.timestamp)),
+    ...benchmarkSeries.flatMap((series) => series.points.map((point) => Number(point.timestamp))),
+  ].filter(Number.isFinite);
   const values = [...averageSeries, ...benchmarkSeries.flatMap((series) => series.points)].map((point) => point.close);
   const min = Math.min(...values);
   const max = Math.max(...values);
+  const minTimestamp = Math.min(...allTimestampValues);
+  const maxTimestamp = Math.max(...allTimestampValues);
 
   for (let index = 0; index < 4; index += 1) {
     const y = padding + ((height - padding * 2) / 3) * index;
@@ -1961,7 +2017,10 @@ function renderOverview(stocks, benchmarks) {
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("class", "overview-line");
     path.setAttribute("stroke", series.color);
-    path.setAttribute("d", buildLinePath(series.points, width, height, padding, min, max));
+    path.setAttribute(
+      "d",
+      buildLinePath(series.points, width, height, padding, min, max, minTimestamp, maxTimestamp)
+    );
     overviewChart.appendChild(path);
   });
 
@@ -1975,7 +2034,17 @@ function renderOverview(stocks, benchmarks) {
   ];
 
   overviewChart.onmousemove = (event) =>
-    showOverviewTooltip(interactiveSeries, width, height, padding, min, max, event);
+    showOverviewTooltip(
+      interactiveSeries,
+      width,
+      height,
+      padding,
+      min,
+      max,
+      minTimestamp,
+      maxTimestamp,
+      event
+    );
   overviewChart.onmouseleave = () => hideOverviewTooltip();
 
   renderLegend([

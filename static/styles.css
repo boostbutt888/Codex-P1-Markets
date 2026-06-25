@@ -1206,6 +1206,7 @@ input {
   border-radius: 20px;
   background: var(--panel-soft);
   border: 1px solid var(--border-soft);
+  overflow: hidden;
 }
 
 .sector-detail-header {
@@ -1228,14 +1229,25 @@ input {
 }
 
 .sector-stock-grid {
-  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-flow: dense;
+  grid-auto-rows: 24px;
+  gap: 0;
+  min-height: 408px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(19, 24, 29, 0.75);
 }
 
 .sector-stock-tile {
-  min-height: 42px;
+  min-height: 0;
   padding: 8px 7px;
-  gap: 3px;
-  border-radius: 12px;
+  gap: 4px;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  align-content: start;
+  overflow: hidden;
 }
 
 .sector-stock-tile .market-tile-label {
@@ -1262,6 +1274,53 @@ input {
 
 .sector-stock-tile .market-tile-meta {
   display: none;
+}
+
+.sector-stock-tile-xl {
+  grid-column: span 4;
+  grid-row: span 5;
+  padding: 12px 10px;
+}
+
+.sector-stock-tile-xl .market-tile-symbol {
+  font-size: 1.05rem;
+}
+
+.sector-stock-tile-xl .market-tile-change {
+  font-size: 1rem;
+}
+
+.sector-stock-tile-xl .market-tile-label {
+  font-size: 0.66rem;
+  -webkit-line-clamp: 3;
+}
+
+.sector-stock-tile-lg {
+  grid-column: span 3;
+  grid-row: span 4;
+  padding: 10px 9px;
+}
+
+.sector-stock-tile-lg .market-tile-symbol {
+  font-size: 0.92rem;
+}
+
+.sector-stock-tile-lg .market-tile-change {
+  font-size: 0.92rem;
+}
+
+.sector-stock-tile-lg .market-tile-label {
+  font-size: 0.62rem;
+}
+
+.sector-stock-tile-md {
+  grid-column: span 2;
+  grid-row: span 3;
+}
+
+.sector-stock-tile-sm {
+  grid-column: span 1;
+  grid-row: span 2;
 }
 
 .overview-header {
@@ -1823,5 +1882,31 @@ input {
 
   .card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sector-stock-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-auto-rows: 22px;
+    min-height: 312px;
+  }
+
+  .sector-stock-tile-xl {
+    grid-column: span 3;
+    grid-row: span 4;
+  }
+
+  .sector-stock-tile-lg {
+    grid-column: span 2;
+    grid-row: span 3;
+  }
+
+  .sector-stock-tile-md {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+
+  .sector-stock-tile-sm {
+    grid-column: span 1;
+    grid-row: span 2;
   }
 }

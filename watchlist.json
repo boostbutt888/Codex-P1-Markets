@@ -4,41 +4,36 @@
       "symbol": "AAPL",
       "label": "AAPL",
       "market": "US",
-      "position": 0.0
+      "position": 600.0,
+      "averagePrice": 121.56
     },
     {
       "symbol": "TSLA",
       "label": "TSLA",
       "market": "US",
-      "position": 0.0
+      "position": 2350.0,
+      "averagePrice": 223.22
     },
     {
       "symbol": "AMZN",
       "label": "AMZN",
       "market": "US",
-      "position": 0.0
+      "position": 500.0,
+      "averagePrice": 148.0
     },
     {
       "symbol": "AMD",
       "label": "AMD",
       "market": "US",
-      "position": 0.0
+      "position": 50.0,
+      "averagePrice": 154.0
     },
     {
       "symbol": "GOOG",
       "label": "GOOG",
       "market": "US",
-      "position": 0.0
-    },
-    {
-      "symbol": "NVDA",
-      "label": "NVDA",
-      "market": "US"
-    },
-    {
-      "symbol": "META",
-      "label": "Meta Platforms, Inc.",
-      "market": "US"
+      "position": 60.0,
+      "averagePrice": 182.73
     },
     {
       "symbol": "D05.SI",
@@ -56,14 +51,24 @@
       "market": "SG"
     },
     {
-      "symbol": "O39.SI",
-      "label": "OCBC Bank",
-      "market": "SG"
-    },
-    {
       "symbol": "HMN.SI",
       "label": "CapLand Ascott T",
       "market": "SG"
+    },
+    {
+      "symbol": "AWZ.SI",
+      "label": "Multi-Chem",
+      "market": "SG"
+    },
+    {
+      "symbol": "C6L.SI",
+      "label": "SIA",
+      "market": "SG"
+    },
+    {
+      "symbol": "SPCX",
+      "label": "Space Exploration Technologies",
+      "market": "US"
     }
   ]
 }

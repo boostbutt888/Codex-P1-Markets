@@ -732,7 +732,7 @@ def fetch_market_snapshots(segments: list[dict]) -> tuple[list[dict], list[str]]
             for item in results
             if item.get("symbol")
         }
-        for segment in MARKET_SEGMENTS:
+        for segment in segments:
             quote_result = by_symbol.get(segment["symbol"])
             if not quote_result:
                 raise ValueError(f"Missing quote for {segment['symbol']}")
